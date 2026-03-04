@@ -48,11 +48,11 @@ tasks.named<Jar>("jar") {
             
             "Implementation-Title" to "WebRTC Java",
             "Implementation-Version" to project.version,
-            "Implementation-Vendor" to "Kas-tle",
-            
-            "Automatic-Module-Name" to "dev.kastle.webrtc", 
-            
-            "Bundle-SymbolicName" to "dev.kastle.webrtc",
+            "Implementation-Vendor" to "SagaHealthcareIT",
+
+            "Automatic-Module-Name" to "com.saga_it.webrtc",
+
+            "Bundle-SymbolicName" to "com.saga-it.webrtc",
             "Bundle-Version" to project.version,
             
             "Created-By" to "Gradle ${gradle.gradleVersion}",
@@ -70,8 +70,8 @@ publishing {
 
             pom {
                 name.set("webrtc-java")
-                description.set("A JNI implementation WebRTC for data channels.")
-                url.set("https://github.com/Kas-tle/webrtc-java")
+                description.set("A slim JNI WebRTC implementation for data channels only.")
+                url.set("https://github.com/SagaHealthcareIT/webrtc-java-slim")
                 inceptionYear.set("2025")
                 licenses {
                     license {
@@ -81,22 +81,22 @@ publishing {
                 }
                 developers {
                     developer {
-                        name.set("Kas-tle")
-                        organization.set("Kas-tle")
-                        organizationUrl.set("https://github.com/Kas-tle")
+                        name.set("SagaHealthcareIT")
+                        organization.set("Saga Healthcare IT")
+                        organizationUrl.set("https://github.com/SagaHealthcareIT")
                     }
                 }
                 scm {
-                    connection.set("scm:git:git://github.com/Kas-tle/webrtc-java.git")
-                    url.set("https://github.com/Kas-tle/webrtc-java")
+                    connection.set("scm:git:git://github.com/SagaHealthcareIT/webrtc-java-slim.git")
+                    url.set("https://github.com/SagaHealthcareIT/webrtc-java-slim")
                 }
                 ciManagement {
                     system.set("GitHub Actions")
-                    url.set("https://github.com/Kas-tle/webrtc-java/actions")
+                    url.set("https://github.com/SagaHealthcareIT/webrtc-java-slim/actions")
                 }
                 issueManagement {
                     system.set("GitHub Issues")
-                    url.set("https://github.com/Kas-tle/webrtc-java/issues")
+                    url.set("https://github.com/SagaHealthcareIT/webrtc-java-slim/issues")
                 }
             }
 

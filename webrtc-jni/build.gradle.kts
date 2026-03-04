@@ -129,9 +129,9 @@ tasks.named<Jar>("jar") {
             
             "Implementation-Title" to "WebRTC Java Natives ($targetPlatform)",
             "Implementation-Version" to project.version,
-            "Implementation-Vendor" to "Kas-tle",
-            
-            "Automatic-Module-Name" to "dev.kastle.webrtc.natives.$safePlatformName",
+            "Implementation-Vendor" to "SagaHealthcareIT",
+
+            "Automatic-Module-Name" to "com.saga_it.webrtc.natives.$safePlatformName",
             
             "Created-By" to "Gradle ${gradle.gradleVersion}",
             "Build-Jdk-Spec" to "17",

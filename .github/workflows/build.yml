@@ -214,7 +214,7 @@ jobs:
       - test-windows
       - test-linux
       - test-macos
-    if: ${{ success() && github.repository == 'Kas-tle/webrtc-java' && github.ref_name == 'master' }}
+    if: ${{ success() && github.repository == 'SagaHealthcareIT/webrtc-java-slim' && github.ref_name == 'master' }}
     runs-on: ubuntu-22.04
     outputs:
       unreleased: ${{ steps.version.outputs.unreleased }}
@@ -237,10 +237,8 @@ jobs:
     name: Release and Publish
     needs:
       - detect-release
-    if: ${{ success() && github.repository == 'Kas-tle/webrtc-java' && github.ref_name == 'master' && needs.detect-release.outputs.unreleased == 'true' }}
+    if: ${{ success() && github.repository == 'SagaHealthcareIT/webrtc-java-slim' && github.ref_name == 'master' && needs.detect-release.outputs.unreleased == 'true' }}
     runs-on: ubuntu-22.04
-    outputs:
-      release_id: ${{ steps.release.outputs.releaseID }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         name: Checkout Repository
@@ -253,33 +251,13 @@ jobs:
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         name: Publish to Maven Central
-      - uses: Kas-tle/base-release-action@b89ab10da9dfaa0b5fb0ca9e77679c7c7d1297f8
-        id: release
-        with:
-          files: |
-            webrtc/build/libs/*.jar
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ needs.detect-release.outputs.version }}"
+          gh release create "${version}" \
+            --title "${version}" \
+            --generate-notes \
+            webrtc/build/libs/*.jar \
             native-staging/webrtc-java-jni-*/*.jar
-          appID: ${{ secrets.RELEASE_APP_ID }}
-          appPrivateKey: ${{ secrets.RELEASE_APP_PK }}
-          discordWebhook: ${{ secrets.DISCORD_WEBHOOK }}
-          tagBase: ${{ needs.detect-release.outputs.version }}
-          tagIncrement: false
-          tagSeparator: ""
-          tagPrefix: ""
-          releaseName: ${{ needs.detect-release.outputs.version }}
-          releaseBodyDependencyUsage: "java"
-          releaseBodyDependencyJavaGroupId: "dev.kastle.webrtc"
-          releaseBodyDependencyJavaArtifactId: "webrtc-java"
-        name: Create Release
-
-  upload-logs:
-    name: Upload Logs
-    runs-on: ubuntu-22.04
-    needs: release
-    if: ${{ success() && github.repository == 'Kas-tle/webrtc-java' && github.ref_name == 'master' }}
-    steps:
-      - uses: Kas-tle/release-build-log-action@1b57448eaf9476e6e05450e4ea240449eac2c0d2
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          releaseID: ${{ needs.release.outputs.release_id }}
-        name: Upload Build Logs to Release

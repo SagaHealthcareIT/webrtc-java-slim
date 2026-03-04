@@ -1,0 +1,16 @@
+--- a/rtc_base/openssl_adapter.cc
++++ b/rtc_base/openssl_adapter.cc
+@@ -958,6 +958,13 @@
+     return nullptr;
+   }
+ #endif  // WEBRTC_EXCLUDE_BUILT_IN_SSL_ROOT_CERTS
++
++  // Also attempt to load the system's default root CA certificates.
++  // The built-in ssl_roots.h only contains CAs used by Google services.
++  // Loading system CAs allows standalone WebRTC applications to verify
++  // certificates from any publicly trusted CA (e.g. Let's Encrypt).
++  SSL_CTX_set_default_verify_paths(ctx);
++
+ 
+ #if !defined(NDEBUG)
+   SSL_CTX_set_info_callback(ctx, SSLInfoCallback);

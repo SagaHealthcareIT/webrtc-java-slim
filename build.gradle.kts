@@ -5,7 +5,7 @@ plugins {
 }
 
 allprojects {
-    group = "dev.kastle.webrtc"
+    group = "com.saga-it.webrtc"
     version = rootProject.property("version") as String
 
     repositories {
