@@ -47,8 +47,16 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_PeerConnectionFactory_initialize
         return;
     }
 
+    // Store thread handles to Java fields for cleanup in dispose().
+    // The factory does not take ownership of externally-provided threads
+    // (ConnectionContext::MaybeStartNetworkThread returns them as-is),
+    // so dispose() must stop and delete them.
+    SetHandle(env, caller, "networkThreadHandle", networkThread.get());
+    SetHandle(env, caller, "signalingThreadHandle", signalingThread.get());
+    SetHandle(env, caller, "workerThreadHandle", workerThread.get());
+
     webrtc::PeerConnectionFactoryDependencies dependencies;
-    
+
     dependencies.network_thread = networkThread.release();
     dependencies.worker_thread = workerThread.release();
     dependencies.signaling_thread = signalingThread.release();
