@@ -109,11 +109,10 @@ if(APPLE)
     target_link_options(${PROJECT_NAME} PRIVATE "-ObjC")
     target_link_libraries(${PROJECT_NAME} "-framework Foundation" "-framework AVFoundation" "-framework CoreMedia" "-framework CoreVideo")
 elseif(LINUX)
-    if(NOT TARGET_CPU MATCHES "^arm")
-        set(CXX_LIBS "-static-libgcc -stdlib=libc++ -lc++ -lc++abi")
-    else()
-        set(CXX_LIBS "-static-libgcc")
-    endif()
+    # Link WebRTC's bundled libc++ on every Linux target (see CUSTOM_LIBCXX in
+    # dependencies/webrtc/CMakeLists.txt); the arm cross sysroot's system libc++
+    # is too old for the C++20 features WebRTC's sources require.
+    set(CXX_LIBS "-static-libgcc -stdlib=libc++ -lc++ -lc++abi")
 
     target_link_libraries(${PROJECT_NAME} ${CXX_LIBS})
 elseif(WIN32)
