@@ -1,6 +1,6 @@
 --- a/rtc_base/openssl_adapter.cc
 +++ b/rtc_base/openssl_adapter.cc
-@@ -958,6 +958,13 @@
+@@ -991,6 +991,13 @@
      return nullptr;
    }
  #endif  // WEBRTC_EXCLUDE_BUILT_IN_SSL_ROOT_CERTS

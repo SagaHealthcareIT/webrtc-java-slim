@@ -17,6 +17,7 @@
 #include "JNI_PeerConnectionFactory.h"
 #include "api/PeerConnectionObserver.h"
 #include "api/RTCConfiguration.h"
+#include "api/create_modular_peer_connection_factory.h"
 #include "JavaError.h"
 #include "JavaFactories.h"
 #include "JavaNullPointerException.h"

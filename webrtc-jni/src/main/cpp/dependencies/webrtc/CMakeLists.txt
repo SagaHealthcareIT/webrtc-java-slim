@@ -254,12 +254,19 @@ if (PATCHES)
             WORKING_DIRECTORY "${WEBRTC_SRC}"
             INPUT_FILE "${PATCH}"
             OUTPUT_VARIABLE OUTPUT
+            ERROR_VARIABLE PATCH_ERROR
             RESULT_VARIABLE RESULT)
 
         if (RESULT EQUAL 0)
             message(STATUS "Patch applied: ${PATCH}")
         else()
-            message(STATUS "Warning: Patch ${PATCH} not applied ....")
+            # These patches are required (notably system SSL root-cert trust).
+            # A silent skip would ship a build that behaves differently than
+            # intended, so fail hard. A failure here almost always means the
+            # patch needs updating for the current webrtc.branch.
+            message(FATAL_ERROR "WebRTC: failed to apply required patch ${PATCH} "
+                "(git apply exit ${RESULT}). Update the patch for the current "
+                "webrtc.branch. git apply output:\n${PATCH_ERROR}")
         endif()
     endforeach(PATCH)
 endif()

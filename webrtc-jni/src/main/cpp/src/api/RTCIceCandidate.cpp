@@ -22,7 +22,7 @@
 #include "Exception.h"
 #include "JNI_WebRTC.h"
 
-#include "pc/webrtc_sdp.h"
+#include "api/jsep.h"
 
 namespace jni
 {
@@ -40,25 +40,6 @@ namespace jni
 				candidate->sdp_mline_index(),
 				JavaString::toJava(env, sdpStr).get(),
 				JavaString::toJava(env, candidate->server_url()).get());
-
-			return JavaLocalRef<jobject>(env, jCandidate);
-		}
-
-		JavaLocalRef<jobject> toJavaCricket(JNIEnv * env, const webrtc::Candidate & candidate)
-		{
-			const auto javaClass = JavaClasses::get<JavaRTCIceCandidateClass>(env);
-
-			std::string sdp = webrtc::SdpSerializeCandidate(candidate);
-
-			if (sdp.empty()) {
-				throw Exception("Got an empty ICE candidate");
-			}
-
-			jobject jCandidate = env->NewObject(javaClass->cls, javaClass->ctor,
-				JavaString::toJava(env, candidate.id()).get(),
-				candidate.component(),
-				JavaString::toJava(env, sdp).get(),
-				JavaString::toJava(env, candidate.url()).get());
 
 			return JavaLocalRef<jobject>(env, jCandidate);
 		}
@@ -82,11 +63,6 @@ namespace jni
 			}
 
 			return std::unique_ptr<webrtc::IceCandidateInterface>(candidate);
-		}
-
-		webrtc::Candidate toNativeCricket(JNIEnv * env, const JavaRef<jobject> & javaType)
-		{
-			return toNative(env, javaType)->candidate();
 		}
 
 		JavaRTCIceCandidateClass::JavaRTCIceCandidateClass(JNIEnv * env)

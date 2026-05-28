@@ -344,11 +344,23 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_removeIceCandida
 	CHECK_HANDLE(pc);
 
 	try {
-		auto candidates = jni::JavaArray::toNativeVector<webrtc::Candidate>(env,
+		// Upstream removed the batch RemoveIceCandidates(vector<Candidate>) in favor
+		// of the single-candidate RemoveIceCandidate(const IceCandidate*) (WebRTC
+		// M149). Parse full IceCandidates so each retains its sdpMid / sdpMLineIndex,
+		// which the peer connection needs to resolve the candidate's m= section.
+		auto candidates = jni::JavaArray::toNativeVector<std::unique_ptr<webrtc::IceCandidateInterface>>(env,
 			jni::static_java_ref_cast<jobjectArray>(env, jni::JavaLocalRef<jobject>(env, jCandidates)),
-			&jni::RTCIceCandidate::toNativeCricket);
+			&jni::RTCIceCandidate::toNative);
 
-		if (!pc->RemoveIceCandidates(candidates)) {
+		bool removedAll = true;
+
+		for (const auto & candidate : candidates) {
+			if (!pc->RemoveIceCandidate(candidate.get())) {
+				removedAll = false;
+			}
+		}
+
+		if (!removedAll) {
 			env->Throw(jni::JavaRuntimeException(env, "Remove ICE candidates from the peer connection failed"));
 		}
 	}
