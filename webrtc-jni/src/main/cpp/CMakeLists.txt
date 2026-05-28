@@ -18,10 +18,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND LINUX)
     else()
         message(WARNING "LLD not found! Linker errors may occur.")
     endif()
-    if(TARGET_CPU STREQUAL "x64")
-        add_compile_options(-nostdinc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
-        add_link_options(-stdlib=libc++ -v -Wl,--verbose)
-    endif()
+    # Every Linux target now links WebRTC's bundled libc++, whose headers require
+    # the hardening mode to be defined at compile time (normally injected via
+    # libc++'s generated __config_site). Apply it for all Linux arches, not just
+    # x64, otherwise the arm cross builds fail in __configuration/hardening.h.
+    add_compile_options(-nostdinc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
+    add_link_options(-stdlib=libc++ -v -Wl,--verbose)
 endif()
 
 if(UNIX AND NOT APPLE)
