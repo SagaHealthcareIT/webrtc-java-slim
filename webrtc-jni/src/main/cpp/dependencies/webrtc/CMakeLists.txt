@@ -355,6 +355,19 @@ else()
         COMMAND ninja -C "${WEBRTC_BUILD}"
         WORKING_DIRECTORY "${WEBRTC_SRC}"
     )
+
+    if(LINUX)
+        # The default ninja target does not build the standalone libc++ / libc++abi
+        # static objects for the arm cross toolchains. Without them the harvest
+        # below produces empty archives, leaving libc++abi's __cxa_* symbols
+        # unresolved in the final .so (it then fails to load with
+        # UnsatisfiedLinkError). Build them explicitly for the target toolchain.
+        # No-op on x86_64, where the default target already builds them.
+        execute_command(
+            COMMAND ninja -C "${WEBRTC_BUILD}" buildtools/third_party/libc++:libc++ buildtools/third_party/libc++abi:libc++abi
+            WORKING_DIRECTORY "${WEBRTC_SRC}"
+        )
+    endif()
 endif()
 
 if(LINUX)
