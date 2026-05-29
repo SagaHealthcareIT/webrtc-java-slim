@@ -18,10 +18,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND LINUX)
     else()
         message(WARNING "LLD not found! Linker errors may occur.")
     endif()
-    if(TARGET_CPU STREQUAL "x64")
-        add_compile_options(-nostdinc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
-        add_link_options(-stdlib=libc++ -v -Wl,--verbose)
-    endif()
+    # Every Linux target now links WebRTC's bundled libc++, whose headers require
+    # the hardening mode to be defined at compile time (normally injected via
+    # libc++'s generated __config_site). Apply it for all Linux arches, not just
+    # x64, otherwise the arm cross builds fail in __configuration/hardening.h.
+    add_compile_options(-nostdinc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
+    add_link_options(-stdlib=libc++ -v -Wl,--verbose)
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -109,11 +111,10 @@ if(APPLE)
     target_link_options(${PROJECT_NAME} PRIVATE "-ObjC")
     target_link_libraries(${PROJECT_NAME} "-framework Foundation" "-framework AVFoundation" "-framework CoreMedia" "-framework CoreVideo")
 elseif(LINUX)
-    if(NOT TARGET_CPU MATCHES "^arm")
-        set(CXX_LIBS "-static-libgcc -stdlib=libc++ -lc++ -lc++abi")
-    else()
-        set(CXX_LIBS "-static-libgcc")
-    endif()
+    # Link WebRTC's bundled libc++ on every Linux target (see CUSTOM_LIBCXX in
+    # dependencies/webrtc/CMakeLists.txt); the arm cross sysroot's system libc++
+    # is too old for the C++20 features WebRTC's sources require.
+    set(CXX_LIBS "-static-libgcc -stdlib=libc++ -lc++ -lc++abi")
 
     target_link_libraries(${PROJECT_NAME} ${CXX_LIBS})
 elseif(WIN32)

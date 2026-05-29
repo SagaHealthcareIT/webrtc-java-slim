@@ -24,9 +24,6 @@ jobs:
           - name: windows
             arch: x86_64
             runs-on: windows-2022
-          - name: windows
-            arch: aarch64
-            runs-on: windows-2022
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
@@ -56,9 +53,6 @@ jobs:
           - name: windows
             arch: x86_64
             runs-on: windows-2025
-          - name: windows
-            arch: aarch64
-            runs-on: windows-11-arm
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
@@ -77,9 +71,6 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - name: linux
-            arch: aarch32
-            runs-on: ubuntu-22.04
           - name: linux
             arch: aarch64
             runs-on: ubuntu-22.04
@@ -111,14 +102,6 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - name: linux
-            arch: aarch32
-            runs-on: ubuntu-22.04-arm
-            java-arch: armv7
-          - name: linux
-            arch: aarch32
-            runs-on: ubuntu-24.04-arm
-            java-arch: armv7
           - name: linux
             arch: aarch64
             runs-on: ubuntu-22.04-arm

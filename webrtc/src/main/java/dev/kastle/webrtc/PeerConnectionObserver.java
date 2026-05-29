@@ -88,11 +88,11 @@ public interface PeerConnectionObserver {
 	}
 
 	/**
-	 * ICE candidates have been removed.
+	 * An ICE candidate has been removed.
 	 *
-	 * @param candidates The removed ICE candidates.
+	 * @param candidate The removed ICE candidate.
 	 */
-	default void onIceCandidatesRemoved(RTCIceCandidate[] candidates) {
+	default void onIceCandidateRemoved(RTCIceCandidate candidate) {
 	}
 
 	/**

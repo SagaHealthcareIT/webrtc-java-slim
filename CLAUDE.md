@@ -9,7 +9,11 @@ Published to Maven Central as `dev.kastle.webrtc:webrtc-java`.
 - **Language**: Java + C/C++ (JNI bindings)
 - **Build**: Gradle (Kotlin DSL) — use `./gradlew` wrapper
 - **Native build**: Requires `clang` and `cmake` on PATH
-- **WebRTC version**: Configured via `webrtc.branch` in `webrtc-jni/gradle.properties`
+- **WebRTC version**: Configured via `webrtc.branch` in `webrtc-jni/gradle.properties` (currently `branch-heads/7827` = Chromium **M149**)
+
+## Upstream / fork status
+
+This fork tracks Kas-tle/webrtc-java (the `dev.kastle` slim fork of devopvoid/webrtc-java). As of the M149 bump we are **ahead of both upstreams** — Kas-tle and devopvoid were still on M140-era WebRTC and had not ported the JNI bindings to the M149 API. The binding changes for M149 live in `webrtc-jni/src/main/cpp` (notably the `IceCandidate`/candidate-removal API rework). When bumping `webrtc.branch` again, expect to re-port the bindings against upstream WebRTC API changes; check whether Kas-tle/devopvoid have caught up first.
 
 ## Project Structure
 
@@ -29,7 +33,11 @@ webrtc-jni/      # JNI C++ bindings + CMake native build
 
 ## Platforms
 
-linux-x86_64, linux-aarch32, linux-aarch64, windows-x86_64, windows-aarch64, macos-x86_64, macos-aarch64
+**Built + published in CI** (the classifiers `../gateway` consumes): linux-x86_64, linux-aarch64, windows-x86_64, macos-x86_64, macos-aarch64.
+
+Toolchain files for **linux-aarch32** and **windows-aarch64** remain in the tree, but those targets are **not** built/published in CI:
+- `linux-aarch32`: M149's WebRTC sources require LLVM's bundled libc++ (C++20), but LLVM libc++abi doesn't provide the GNU ARM-EHABI symbol `__cxa_type_match` that 32-bit ARM exception handling needs, and the Debian-bullseye sysroot's GCC-10 libstdc++ is too old for M149 — a catch-22. Unused by the gateway.
+- `windows-aarch64`: unused by the gateway; dropped alongside aarch32.
 
 ## Cross-Project Usage
 
@@ -42,3 +50,5 @@ linux-x86_64, linux-aarch32, linux-aarch64, windows-x86_64, windows-aarch64, mac
 - Initial build clones WebRTC source (~30GB disk space, significant compile time)
 - On Windows, may need `WEBRTC_CHECKOUT_FOLDER` set to a short path (file path length limits)
 - Changing `webrtc.branch` likely requires updating patches in `webrtc-jni/src/main/cpp/dependencies/webrtc/patches/`
+- Patches are **required**: a patch that fails to apply now fails the build hard (CMake `FATAL_ERROR`) rather than logging a warning and continuing. A failure here almost always means a patch needs refreshing for the current `webrtc.branch` (its hunk offsets drifted).
+- The build short-circuits if a compiled `libwebrtc.a` already exists in the checkout. When validating a `webrtc.branch` change locally, delete `webrtc-jni/src/main/cpp/dependencies/webrtc/webrtc-source` (and the `webrtc-jni/build` dir) first, or it will silently reuse the previously-built WebRTC version.

@@ -1,6 +1,6 @@
 --- a/webrtc.gni
 +++ b/webrtc.gni
-@@ -349,6 +349,5 @@
+@@ -332,6 +332,5 @@
  
  # Desktop capturer is supported only on Windows, OSX and Linux.
  rtc_desktop_capture_supported =

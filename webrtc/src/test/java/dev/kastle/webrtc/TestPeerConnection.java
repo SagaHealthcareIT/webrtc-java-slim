@@ -18,6 +18,8 @@ package dev.kastle.webrtc;
 
 import static java.util.Objects.nonNull;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -29,6 +31,8 @@ import java.util.concurrent.CountDownLatch;
 class TestPeerConnection implements PeerConnectionObserver {
 
 	private final CountDownLatch connectedLatch;
+
+	private final List<RTCIceCandidate> localCandidates = new CopyOnWriteArrayList<>();
 
 	private RTCPeerConnection localPeerConnection;
 
@@ -46,7 +50,16 @@ class TestPeerConnection implements PeerConnectionObserver {
 
 	@Override
 	public void onIceCandidate(RTCIceCandidate candidate) {
+		localCandidates.add(candidate);
 		remotePeerConnection.addIceCandidate(candidate);
+	}
+
+	/**
+	 * The ICE candidates this peer gathered locally and sent to the remote peer
+	 * (i.e. the candidates now present in the remote peer's remote description).
+	 */
+	List<RTCIceCandidate> getLocalCandidates() {
+		return localCandidates;
 	}
 
 	@Override

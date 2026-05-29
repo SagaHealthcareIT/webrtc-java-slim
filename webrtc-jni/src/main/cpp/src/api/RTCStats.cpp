@@ -26,6 +26,8 @@
 #include "api/stats/attribute.h"
 #include "rtc_base/logging.h"
 
+#include <algorithm>
+#include <iterator>
 #include <map>
 #include <string>
 
