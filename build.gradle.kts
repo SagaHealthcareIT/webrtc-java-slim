@@ -1,5 +1,11 @@
+// CycloneDX SBOM for the published Java artifacts (audit 2026-07-03 M6);
+// generated and attached to the GitHub release by the release job. The native
+// (.so) side is covered by the pinned webrtc src commit in
+// webrtc-jni/gradle.properties, whose DEPS file pins every transitive
+// dependency revision.
 plugins {
     alias(libs.plugins.nmcp.aggregation)
+    alias(libs.plugins.cyclonedx)
     `maven-publish`
     `eclipse`
 }

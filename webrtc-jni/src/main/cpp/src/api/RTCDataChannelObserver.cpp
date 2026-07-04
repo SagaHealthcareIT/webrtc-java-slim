@@ -42,6 +42,16 @@ namespace jni
 
 		JavaLocalRef<jobject> jBuffer = bufferFactory->create(env, &buffer);
 
+		// create() returns null (with a pending exception) if the message
+		// copy could not be allocated. Do not invoke the Java callback with a
+		// null buffer (would NPE), and do not make another JNI call while an
+		// exception is pending (undefined). Surface it as elsewhere and drop
+		// this message.
+		if (!jBuffer.get()) {
+			ExceptionCheck(env);
+			return;
+		}
+
 		env->CallVoidMethod(observer, javaClass->onMessage, jBuffer.release());
 
 		ExceptionCheck(env);

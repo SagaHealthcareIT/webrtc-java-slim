@@ -27,6 +27,11 @@ public class RTCDataChannelBuffer {
 
 	/**
 	 * The underlying data.
+	 *
+	 * <p>For buffers delivered to
+	 * {@link RTCDataChannelObserver#onMessage(RTCDataChannelBuffer)} this is a
+	 * Java-owned heap buffer containing a copy of the received message; it
+	 * remains valid after the callback returns and may safely be retained.</p>
 	 */
 	public final ByteBuffer data;
 

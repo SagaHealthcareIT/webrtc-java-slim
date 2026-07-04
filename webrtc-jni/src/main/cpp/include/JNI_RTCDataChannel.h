@@ -122,10 +122,10 @@ extern "C" {
 	/*
 	 * Class:     dev_kastle_webrtc_RTCDataChannel
 	 * Method:    sendDirectBuffer
-	 * Signature: (Ljava/nio/ByteBuffer;Z)V
+	 * Signature: (Ljava/nio/ByteBuffer;IIZ)V
 	 */
 	JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendDirectBuffer
-	(JNIEnv *, jobject, jobject, jboolean);
+	(JNIEnv *, jobject, jobject, jint, jint, jboolean);
 
 	/*
 	 * Class:     dev_kastle_webrtc_RTCDataChannel

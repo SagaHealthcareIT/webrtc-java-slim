@@ -184,6 +184,10 @@ if(EXISTS "${WEBRTC_LIB_PATH}" OR EXISTS "${WEBRTC_LIB_PATH_INSTALLED}")
     return()
 endif()
 
+# Pinned depot_tools revision (reproducible builds — audit 2026-07-03 M6).
+# Resolved from HEAD on 2026-07-03; bump deliberately, not implicitly.
+set(DEPOT_TOOLS_REVISION "1b1b01fa912786b88a79f3504176a275183839b5")
+
 if(NOT EXISTS "${WEBRTC_SRC_DIR}/depot_tools")
     message(STATUS "WebRTC: fetch depot tools")
     file(MAKE_DIRECTORY ${WEBRTC_SRC_DIR})
@@ -193,7 +197,24 @@ if(NOT EXISTS "${WEBRTC_SRC_DIR}/depot_tools")
     )
 endif()
 
+# Pin the revision on EVERY configure, not just the initial clone — a cached
+# workspace (incremental CI, local rebuild) would otherwise keep whatever
+# revision it already had, and DEPOT_TOOLS_UPDATE=0 below would then freeze
+# that stale revision instead of the pin.
+message(STATUS "WebRTC: pinning depot_tools to ${DEPOT_TOOLS_REVISION}")
+execute_command(
+    COMMAND git -C depot_tools fetch --quiet origin ${DEPOT_TOOLS_REVISION}
+    WORKING_DIRECTORY "${WEBRTC_SRC_DIR}"
+)
+execute_command(
+    COMMAND git -C depot_tools checkout --quiet ${DEPOT_TOOLS_REVISION}
+    WORKING_DIRECTORY "${WEBRTC_SRC_DIR}"
+)
+
 set(ENV{PATH} "${WEBRTC_SRC_DIR}/depot_tools${PATH_SEP}$ENV{PATH}")
+# Keep depot_tools at the pinned revision — without this, the first gclient
+# invocation self-updates to origin/main and defeats the checkout above.
+set(ENV{DEPOT_TOOLS_UPDATE} "0")
 
 file(MAKE_DIRECTORY ${WEBRTC_DIR})
 

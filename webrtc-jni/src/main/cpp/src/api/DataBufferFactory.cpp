@@ -21,17 +21,37 @@
 namespace jni
 {
 	DataBufferFactory::DataBufferFactory(JNIEnv * env, const char * className) :
-		JavaFactory(env, className, "(" BYTE_BUFFER_SIG "Z)V")
+		JavaFactory(env, className, "(" BYTE_BUFFER_SIG "Z)V"),
+		byteBufferClass(env, FindClass(env, "java/nio/ByteBuffer")),
+		byteBufferWrap(GetStaticMethod(env, byteBufferClass, "wrap", "([B)" BYTE_BUFFER_SIG))
 	{
 	}
 
 	JavaLocalRef<jobject> DataBufferFactory::create(JNIEnv * env, const webrtc::DataBuffer * dataBuffer) const
 	{
-		jobject directBuffer = env->NewDirectByteBuffer(const_cast<char *>(dataBuffer->data.data<char>()), dataBuffer->data.size());
+		// Copy into a Java-owned array: the webrtc::DataBuffer's memory is only
+		// valid for the duration of the OnMessage callback. The previous
+		// NewDirectByteBuffer aliased that memory, so any Java consumer that
+		// retained the buffer past the callback read freed/reused memory.
+		const jsize size = static_cast<jsize>(dataBuffer->data.size());
+
+		jbyteArray array = env->NewByteArray(size);
+		if (array == nullptr) {
+			// OutOfMemoryError is pending.
+			return JavaLocalRef<jobject>(env, nullptr);
+		}
+		env->SetByteArrayRegion(array, 0, size, reinterpret_cast<const jbyte *>(dataBuffer->data.data<char>()));
+
+		jobject buffer = env->CallStaticObjectMethod(byteBufferClass, byteBufferWrap, array);
+		ExceptionCheck(env);
+
 		const jboolean isBinary = static_cast<jboolean>(dataBuffer->binary);
 
-		jobject object = env->NewObject(javaClass, javaCtor, directBuffer, isBinary);
+		jobject object = env->NewObject(javaClass, javaCtor, buffer, isBinary);
 		ExceptionCheck(env);
+
+		env->DeleteLocalRef(array);
+		env->DeleteLocalRef(buffer);
 
 		return JavaLocalRef<jobject>(env, object);
 	}

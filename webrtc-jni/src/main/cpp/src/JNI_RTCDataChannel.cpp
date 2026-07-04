@@ -159,7 +159,7 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_dispose
 }
 
 JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendDirectBuffer
-(JNIEnv * env, jobject caller, jobject jBuffer, jboolean isBinary)
+(JNIEnv * env, jobject caller, jobject jBuffer, jint position, jint length, jboolean isBinary)
 {
 	webrtc::DataChannelInterface * channel = GetHandle<webrtc::DataChannelInterface>(env, caller);
 	CHECK_HANDLE(channel);
@@ -167,11 +167,24 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendDirectBuffer
 	uint8_t * address = static_cast<uint8_t *>(env->GetDirectBufferAddress(jBuffer));
 
 	if (address != NULL) {
-		jlong bufferLength = env->GetDirectBufferCapacity(jBuffer);
+		// Honor the caller's position/limit window. Sending the full capacity
+		// from offset 0 transmitted the wrong bytes for sliced buffers and
+		// leaked stale bytes past the limit.
+		jlong capacity = env->GetDirectBufferCapacity(jBuffer);
 
-		webrtc::CopyOnWriteBuffer data(address, static_cast<size_t>(bufferLength));
+		if (position < 0 || length < 0 || static_cast<jlong>(position) + length > capacity) {
+			env->Throw(jni::JavaError(env, "Buffer window out of bounds"));
+			return;
+		}
 
-		channel->Send(webrtc::DataBuffer(data, static_cast<bool>(isBinary)));
+		webrtc::CopyOnWriteBuffer data(address + position, static_cast<size_t>(length));
+
+		try {
+			channel->Send(webrtc::DataBuffer(data, static_cast<bool>(isBinary)));
+		}
+		catch (...) {
+			ThrowCxxJavaException(env);
+		}
 	}
 	else {
 		env->Throw(jni::JavaError(env, "Non-direct buffer provided"));
@@ -185,12 +198,21 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendByteArrayBuffer
 	CHECK_HANDLE(channel);
 
 	int8_t * arrayPtr = env->GetByteArrayElements(jBufferArray, nullptr);
+
+	if (arrayPtr == nullptr) {
+		// GetByteArrayElements failed (OutOfMemoryError is usually pending).
+		if (!env->ExceptionCheck()) {
+			env->Throw(jni::JavaError(env, "Failed to access byte array"));
+		}
+		return;
+	}
+
 	size_t arrayLength = env->GetArrayLength(jBufferArray);
 
 	webrtc::CopyOnWriteBuffer data(arrayPtr, arrayLength);
 
 	env->ReleaseByteArrayElements(jBufferArray, arrayPtr, JNI_ABORT);
-	
+
 	try {
 		channel->Send(webrtc::DataBuffer(data, static_cast<bool>(isBinary)));
 	}

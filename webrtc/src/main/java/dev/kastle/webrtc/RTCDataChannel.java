@@ -154,24 +154,23 @@ public class RTCDataChannel extends DisposableNativeObject {
 		ByteBuffer data = buffer.data;
 
 		if (data.isDirect()) {
-			sendDirectBuffer(data, buffer.binary);
+			// Pass the position/limit window explicitly — the native side used
+			// to send the buffer's full capacity from offset 0, ignoring any
+			// slice the caller set (and leaking stale bytes past the limit).
+			sendDirectBuffer(data, data.position(), data.remaining(), buffer.binary);
 		}
 		else {
-			byte[] arrayBuffer;
-
-			if (data.hasArray()) {
-				arrayBuffer = data.array();
-			}
-			else {
-				arrayBuffer = new byte[data.remaining()];
-				data.get(arrayBuffer);
-			}
+			// Always copy the remaining window. The previous data.array()
+			// fast path sent the whole backing array, ignoring position/limit
+			// and arrayOffset.
+			byte[] arrayBuffer = new byte[data.remaining()];
+			data.duplicate().get(arrayBuffer);
 
 			sendByteArrayBuffer(arrayBuffer, buffer.binary);
 		}
 	}
 
-	private native void sendDirectBuffer(ByteBuffer buffer, boolean binary);
+	private native void sendDirectBuffer(ByteBuffer buffer, int position, int length, boolean binary);
 
 	private native void sendByteArrayBuffer(byte[] buffer, boolean binary);
 

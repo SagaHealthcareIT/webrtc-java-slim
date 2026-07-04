@@ -43,7 +43,11 @@ runs:
         # Use a more stable version of Clang
         sudo mkdir -p /opt/clang
         wget https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-20-init-9764-gb81d8e90-72.tar.xz
-        sudo tar -xvf clang-llvmorg-20-init-9764-gb81d8e90-72.tar.xz -C /opt/clang
+        # Verify the toolchain before extracting — the tarball is fetched over
+        # the network and feeds the compiler for a published native library
+        # (audit 2026-07-03 M6). Checksum computed 2026-07-03.
+        echo "6e9cc109c18a62eac2489e23071f46912bb7bb31560c60647e30e7dd0a92eb7c  clang-llvmorg-20-init-9764-gb81d8e90-72.tar.xz" | sha256sum -c -
+        sudo tar -xf clang-llvmorg-20-init-9764-gb81d8e90-72.tar.xz -C /opt/clang
       shell: bash
 
     - name: Install required packages for linux-x86_64
