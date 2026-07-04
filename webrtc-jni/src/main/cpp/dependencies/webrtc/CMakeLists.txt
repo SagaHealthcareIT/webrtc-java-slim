@@ -216,6 +216,29 @@ set(ENV{PATH} "${WEBRTC_SRC_DIR}/depot_tools${PATH_SEP}$ENV{PATH}")
 # invocation self-updates to origin/main and defeats the checkout above.
 set(ENV{DEPOT_TOOLS_UPDATE} "0")
 
+# DEPOT_TOOLS_UPDATE=0 also suppresses the first-run self-bootstrap that
+# installs the bundled toolchain (python3_bin_reldir.txt, plus the git/python
+# shims on Windows) which gclient and the gn wrapper require. Bootstrap
+# explicitly: both entry points operate on the CURRENT checkout and never
+# update it, so the pin holds.
+message(STATUS "WebRTC: bootstrapping pinned depot_tools toolchain")
+if(WIN32)
+    execute_command(
+        COMMAND bootstrap\\win_tools.bat
+        WORKING_DIRECTORY "${WEBRTC_SRC_DIR}/depot_tools"
+    )
+else()
+    execute_command(
+        COMMAND bash ensure_bootstrap
+        WORKING_DIRECTORY "${WEBRTC_SRC_DIR}/depot_tools"
+    )
+endif()
+# execute_command() ignores exit codes, and a missing bootstrap only surfaces
+# minutes later as "ninja: fatal: chdir to 'out/...'" — fail loudly here instead.
+if(NOT EXISTS "${WEBRTC_SRC_DIR}/depot_tools/python3_bin_reldir.txt")
+    message(FATAL_ERROR "WebRTC: depot_tools bootstrap failed — python3_bin_reldir.txt missing")
+endif()
+
 file(MAKE_DIRECTORY ${WEBRTC_DIR})
 
 message(STATUS "WebRTC: Configuring gclient for branch ${WEBRTC_BRANCH}")
