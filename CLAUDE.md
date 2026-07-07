@@ -33,11 +33,9 @@ webrtc-jni/      # JNI C++ bindings + CMake native build
 
 ## Platforms
 
-**Built + published in CI** (the classifiers `../gateway` consumes): linux-x86_64, linux-aarch64, windows-x86_64, macos-x86_64, macos-aarch64.
+**Built + published in CI** (the classifiers `../gateway` consumes): linux-x86_64, linux-aarch64, windows-x86_64, windows-aarch64, macos-x86_64, macos-aarch64. windows-aarch64 was dropped in `717362a` as "unused" and **restored 2026-07-07** (the OpenShare Engine ships Windows ARM installers; cross-compiled on the x64 runner, tested natively on windows-11-arm) — it first ships in the release AFTER 1.2.1, so consumers must not declare that classifier at 1.2.1.
 
-Toolchain files for **linux-aarch32** and **windows-aarch64** remain in the tree, but those targets are **not** built/published in CI:
-- `linux-aarch32`: M149's WebRTC sources require LLVM's bundled libc++ (C++20), but LLVM libc++abi doesn't provide the GNU ARM-EHABI symbol `__cxa_type_match` that 32-bit ARM exception handling needs, and the Debian-bullseye sysroot's GCC-10 libstdc++ is too old for M149 — a catch-22. Unused by the gateway.
-- `windows-aarch64`: unused by the gateway; dropped alongside aarch32.
+Toolchain files for **linux-aarch32** remain in the tree, but it is **not** built/published in CI: M149's WebRTC sources require LLVM's bundled libc++ (C++20), but LLVM libc++abi doesn't provide the GNU ARM-EHABI symbol `__cxa_type_match` that 32-bit ARM exception handling needs, and the Debian-bullseye sysroot's GCC-10 libstdc++ is too old for M149 — a catch-22. Unused by the gateway.
 
 ## Cross-Project Usage
 

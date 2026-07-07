@@ -24,6 +24,14 @@ jobs:
           - name: windows
             arch: x86_64
             runs-on: windows-2022
+          # aarch64 is cross-compiled on the x64 runner and tested natively on
+          # windows-11-arm below. Restored 2026-07-07: it was dropped in
+          # 717362a as "unused by the gateway", but the gateway's engine
+          # installers DO ship Windows ARM media — without this native, those
+          # installs have no tunnels.
+          - name: windows
+            arch: aarch64
+            runs-on: windows-2022
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
@@ -53,6 +61,9 @@ jobs:
           - name: windows
             arch: x86_64
             runs-on: windows-2025
+          - name: windows
+            arch: aarch64
+            runs-on: windows-11-arm
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
