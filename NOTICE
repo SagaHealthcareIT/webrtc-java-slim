@@ -1,10 +1,40 @@
 webrtc-java
 Copyright 2019 Alex Andres
 
+This product (com.saga-it.webrtc:webrtc-java) is a fork of webrtc-java by
+Alex Andres (https://github.com/devopvoid/webrtc-java), via the data-channel-
+only "slim" fork by Kas-tle (https://github.com/Kas-tle/webrtc-java), with
+modifications by Saga Healthcare IT
+(https://github.com/SagaHealthcareIT/webrtc-java-slim).
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 EXTERNAL COMPONENTS
 
-This product bundles WebRTC, which is available under a "3-clause BSD" license.
-For details, see https://webrtc.github.io/webrtc-org/license.
+This product bundles WebRTC (libwebrtc, https://webrtc.googlesource.com/src),
+which is available under a "3-clause BSD" license with an additional patent
+grant. For details, see licenses/WEBRTC-LICENSE and licenses/WEBRTC-PATENTS
+(also at https://webrtc.github.io/webrtc-org/license).
+  Copyright (c) 2011, The WebRTC project authors.
+
+The platform-specific native JARs contain a compiled WebRTC library that
+statically incorporates components from the WebRTC/Chromium third_party
+tree, including:
+
+  * BoringSSL - Google's fork of OpenSSL; portions under the OpenSSL
+    license, the ISC license, and others (licenses/BORINGSSL-LICENSE)
+  * Abseil (abseil-cpp) - Apache License 2.0 (licenses/ABSEIL-LICENSE)
+  * libyuv - 3-clause BSD license (licenses/LIBYUV-LICENSE)
+  * crc32c - 3-clause BSD license (licenses/CRC32C-LICENSE)
+  * libsrtp - BSD-style license, Cisco Systems (licenses/LIBSRTP-LICENSE)
+
+The complete set of third-party notices for libwebrtc is available in the
+third_party directory of the WebRTC source tree (pinned to the branch
+recorded in webrtc-jni/gradle.properties) at
+https://webrtc.googlesource.com/src.
+
+In the published JARs, the license texts referenced above are located under
+META-INF/licenses/; in the source repository they are in the legal/
+directory.
 
 DOCUMENTATION
 

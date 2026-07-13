@@ -1,6 +1,6 @@
-[![Maven Central Version](https://img.shields.io/maven-central/v/dev.kastle.webrtc/webrtc-java?label=Maven%20Central&color=%233fb950)](https://repo1.maven.org/maven2/dev/kastle/webrtc/webrtc-java/)
+[![Maven Central Version](https://img.shields.io/maven-central/v/com.saga-it.webrtc/webrtc-java?label=Maven%20Central&color=%233fb950)](https://repo1.maven.org/maven2/com/saga-it/webrtc/webrtc-java/)
 
-This is a fork of devopvoid's [webrtc-java](https://github.com/devopvoid/webrtc-java) library, a Java wrapper for the [WebRTC Native API](https://webrtc.github.io/webrtc-org/native-code/native-apis).
+This is a fork of devopvoid's [webrtc-java](https://github.com/devopvoid/webrtc-java) library — via Kas-tle's data-channel-only [slim fork](https://github.com/Kas-tle/webrtc-java) — a Java wrapper for the [WebRTC Native API](https://webrtc.github.io/webrtc-org/native-code/native-apis).
 
 ## Differences from the Original Project
 
@@ -10,7 +10,7 @@ It also adds support for ARM Windows systems, and has testing coverage for all p
 
 ## Usage
 
-The base project is published under the group `dev.kastle.webrtc` and artifact `webrtc-java`. The native libraries are published under the same group and artifact with platform-specific classifiers:
+The base project is published under the group `com.saga-it.webrtc` and artifact `webrtc-java`. The native libraries are published under the same group and artifact with platform-specific classifiers:
 
 - `linux-x86_64`
 - `linux-aarch32`
@@ -25,12 +25,12 @@ The base project is published under the group `dev.kastle.webrtc` and artifact `
 
 ```xml
 <dependency>
-    <groupId>dev.kastle.webrtc</groupId>
+    <groupId>com.saga-it.webrtc</groupId>
     <artifactId>webrtc-java</artifactId>
     <version>VERSION</version>
 </dependency>
 <dependency>
-    <groupId>dev.kastle.webrtc</groupId>
+    <groupId>com.saga-it.webrtc</groupId>
     <artifactId>webrtc-java</artifactId>
     <version>VERSION</version>
     <classifier>PLATFORM-ARCH</classifier>
@@ -42,8 +42,8 @@ The base project is published under the group `dev.kastle.webrtc` and artifact `
 <summary>Gradle Usage (Groovy)</summary>
 
 ```groovy
-implementation 'dev.kastle.webrtc:webrtc-java:VERSION'
-implementation 'dev.kastle.webrtc:webrtc-java:VERSION:PLATFORM-ARCH'
+implementation 'com.saga-it.webrtc:webrtc-java:VERSION'
+implementation 'com.saga-it.webrtc:webrtc-java:VERSION:PLATFORM-ARCH'
 ```
 </details>
 
@@ -51,12 +51,12 @@ implementation 'dev.kastle.webrtc:webrtc-java:VERSION:PLATFORM-ARCH'
 <summary>Gradle Usage (Kotlin DSL)</summary>
 
 ```kotlin
-implementation("dev.kastle.webrtc:webrtc-java:VERSION")
-implementation("dev.kastle.webrtc:webrtc-java:VERSION:PLATFORM-ARCH")
+implementation("com.saga-it.webrtc:webrtc-java:VERSION")
+implementation("com.saga-it.webrtc:webrtc-java:VERSION:PLATFORM-ARCH")
 ```
 </details>
 
-Note that the natives are not bundled with the main library, so you will need to appropriately include those that are needed for your project. If your project is an executable jar, you may want to read [JEP-472](https://openjdk.org/jeps/472). Because this project uses JNI, you may need to enable native access, depending on your Java version and execution environment. The main module is named `dev.kastle.webrtc`, and the natives modules are named `dev.kastle.webrtc.natives.<platform>` (e.g. `dev.kastle.webrtc.natives.linux.x86_64`), with any hyphens replaced by periods.
+Note that the natives are not bundled with the main library, so you will need to appropriately include those that are needed for your project. If your project is an executable jar, you may want to read [JEP-472](https://openjdk.org/jeps/472). Because this project uses JNI, you may need to enable native access, depending on your Java version and execution environment. The main Java module is named `dev.kastle.webrtc` (retained from the upstream fork for compatibility), and the natives modules are named `com.saga_it.webrtc.natives.<platform>` (e.g. `com.saga_it.webrtc.natives.linux.x86_64`), with any hyphens replaced by periods.
 
 ## Development
 
@@ -79,3 +79,5 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 ```
+
+The platform-specific native JARs contain a compiled build of [WebRTC](https://webrtc.googlesource.com/src) (3-clause BSD with an additional patent grant), which statically incorporates further third-party components (BoringSSL, Abseil, libyuv, crc32c, libsrtp). See [NOTICE](NOTICE) and the license texts in [legal/](legal/) — both are also packaged under `META-INF/` inside the published JARs.

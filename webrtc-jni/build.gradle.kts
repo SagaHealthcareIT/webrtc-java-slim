@@ -121,6 +121,18 @@ tasks.named<Jar>("jar") {
         into("/")
     }
 
+    // The native jar ships a compiled libwebrtc (BSD-3-Clause + patent grant)
+    // that statically links BoringSSL, abseil, libyuv, crc32c, and libsrtp —
+    // their license texts (legal/) must accompany the binary, alongside our
+    // own LICENSE and NOTICE.
+    metaInf {
+        from(rootProject.file("LICENSE"))
+        from(rootProject.file("NOTICE"))
+        from(rootProject.file("legal")) {
+            into("licenses")
+        }
+    }
+
     manifest {
         val safePlatformName = targetPlatform?.replace("-", ".") ?: "unknown"
         

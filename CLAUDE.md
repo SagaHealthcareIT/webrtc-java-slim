@@ -2,7 +2,7 @@
 
 Java wrapper for the WebRTC Native API — **data channels only** (no audio/video). Fork of devopvoid's webrtc-java, stripped down for P2P data exchange.
 
-Published to Maven Central as `dev.kastle.webrtc:webrtc-java`.
+Published to Maven Central as `com.saga-it.webrtc:webrtc-java` (the Java module name remains `dev.kastle.webrtc`, retained from the upstream fork).
 
 ## Tech Stack
 

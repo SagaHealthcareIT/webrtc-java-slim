@@ -41,6 +41,15 @@ tasks.named<Test>("test") {
     }
 }
 
+// LICENSE and NOTICE must travel inside every published jar, not just sit in
+// the repo — Apache-2.0 requires the NOTICE to accompany redistributions.
+tasks.withType<Jar>().configureEach {
+    metaInf {
+        from(rootProject.file("LICENSE"))
+        from(rootProject.file("NOTICE"))
+    }
+}
+
 tasks.named<Jar>("jar") {
     manifest {
         attributes(
