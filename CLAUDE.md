@@ -9,11 +9,15 @@ Published to Maven Central as `com.saga-it.webrtc:webrtc-java` (the Java module 
 - **Language**: Java + C/C++ (JNI bindings)
 - **Build**: Gradle (Kotlin DSL) — use `./gradlew` wrapper
 - **Native build**: Requires `clang` and `cmake` on PATH
-- **WebRTC version**: Configured via `webrtc.branch` in `webrtc-jni/gradle.properties` (currently `branch-heads/7827` = Chromium **M149**)
+- **WebRTC version**: Configured via `webrtc.branch` in `webrtc-jni/gradle.properties` (currently `branch-heads/7922` = Chromium **M151**)
 
 ## Upstream / fork status
 
 This fork tracks Kas-tle/webrtc-java (the `dev.kastle` slim fork of devopvoid/webrtc-java). As of the M149 bump we are **ahead of both upstreams** — Kas-tle and devopvoid were still on M140-era WebRTC and had not ported the JNI bindings to the M149 API. The binding changes for M149 live in `webrtc-jni/src/main/cpp` (notably the `IceCandidate`/candidate-removal API rework). When bumping `webrtc.branch` again, expect to re-port the bindings against upstream WebRTC API changes; check whether Kas-tle/devopvoid have caught up first.
+
+**Milestone branches go end-of-life.** Check `curl -s 'https://chromiumdash.appspot.com/fetch_milestones?only_branched=true'` for `schedule_active` before assuming an unmoved `webrtc.branch` head is healthy — a frozen head usually means the branch stopped receiving security merge-backs, not that there was nothing to fix. The security payload of a bump is mostly the *transitive* BoringSSL revision that the branch's `DEPS` pins, which no dependency scanner reports (BoringSSL issues no CVEs).
+
+The M149 → M151 bump (2026-07-25) was cheap on the binding side: `api/data_channel_interface.h` was byte-identical across M149/M150/M151, both required patches applied unmodified, and every `rtc_*` gn arg we pass survived. The two API breaks in range — `LOG_ERROR` → `RTC_LOG_ERROR` and `SSLAdapter::SetMode` removal — touch symbols this JNI never used. The one suspected hazard — `rtc_base/logging.h` dropping its `std::ostringstream` fallback `MakeVal` overload — turned out to be a non-issue: that fallback only ever served arbitrary *class* types, and both `RTC_LOG` call sites log types with surviving dedicated overloads (`JNI_Logging.cpp` logs a `std::string` → `kStdString`; `src/api/RTCStats.cpp` logs `stats.type()`, still `const char*` → `kCharP`). Validated by a full cold linux-x86_64 build off the M151 pin plus the whole test suite green.
 
 ## Project Structure
 

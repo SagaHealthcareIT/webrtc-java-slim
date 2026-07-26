@@ -185,8 +185,10 @@ if(EXISTS "${WEBRTC_LIB_PATH}" OR EXISTS "${WEBRTC_LIB_PATH_INSTALLED}")
 endif()
 
 # Pinned depot_tools revision (reproducible builds — audit 2026-07-03 M6).
-# Resolved from HEAD on 2026-07-03; bump deliberately, not implicitly.
-set(DEPOT_TOOLS_REVISION "1b1b01fa912786b88a79f3504176a275183839b5")
+# Resolved from HEAD on 2026-07-25; bump deliberately, not implicitly.
+# Moved with the M149 -> M151 webrtc.branch bump: the newer branch's DEPS
+# and hooks expect a depot_tools of roughly the same vintage.
+set(DEPOT_TOOLS_REVISION "f394ab2c993283e94680ca13db98b99927868e98")
 
 if(NOT EXISTS "${WEBRTC_SRC_DIR}/depot_tools")
     message(STATUS "WebRTC: fetch depot tools")
