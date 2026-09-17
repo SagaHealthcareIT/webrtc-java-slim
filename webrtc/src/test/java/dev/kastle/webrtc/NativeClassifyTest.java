@@ -90,9 +90,14 @@ class NativeClassifyTest {
 	}
 
 	@Test
-	void aForeignElfIsAnArchMismatch() throws IOException {
+	void aForeignElfIsAnArchMismatchWhenTheLoaderSaysSo() throws IOException {
+		// There is no structural arch check: an aarch64 .so on x86 is an ELF like any other, and the
+		// only signal that it is the wrong one is hotspot's suffix.
+		String message = "/opt/lib.so: wrong ELF class: ELFCLASS64"
+				+ " (Possible cause: can't load AARCH64 .so on a AMD 64 platform)";
+
 		assertEquals(NativeFault.ARCH_MISMATCH,
-				NativeLibrary.classify("boom", exec("linux-aarch64"), linux("amd64")));
+				NativeLibrary.classify(message, exec("linux-aarch64"), linux("amd64")));
 	}
 
 	@Test

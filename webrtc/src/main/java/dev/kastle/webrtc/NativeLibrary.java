@@ -263,8 +263,12 @@ public final class NativeLibrary {
 
 		BinaryHeader header = header(file);
 
+		// Declared order (see NativeFault): architecture before format. A library built for
+		// another machine and a library in another container format both fail to load, but their
+		// remediations differ, and on Windows neither produces a distinguishable JVM message — so
+		// read the file rather than the message wherever the file can be read.
 		if (header != null) {
-			String fileArch = header.archName();
+			String fileArch = header.arch();
 
 			if (!fileArch.isEmpty() && !fileArch.equals(p.osArch().orElse(""))) {
 				return NativeFault.ARCH_MISMATCH;
@@ -275,7 +279,8 @@ public final class NativeLibrary {
 		}
 
 		// hotspot appends this when the loader rejects the machine type; the suffix itself is not
-		// localized even where the leading text is.
+		// localized even where the leading text is. Still needed for the case where the file could
+		// not be read here but the loader got far enough to reject it.
 		if (message.contains("(Possible cause:")) {
 			return NativeFault.ARCH_MISMATCH;
 		}
@@ -404,11 +409,12 @@ public final class NativeLibrary {
 			return Resolution.failed(fault(NativeFault.CORRUPT_INSTALL, context));
 		}
 
-		String fileArch = header.archName();
+		String fileArch = header.arch();
 
 		if (!fileArch.isEmpty() && !fileArch.equals(p.osArch().orElse(""))) {
 			return Resolution.failed(fault(NativeFault.ARCH_MISMATCH, context));
 		}
+
 		if (header.format() != expectedFormat(p)) {
 			return Resolution.failed(fault(NativeFault.WRONG_FORMAT, context));
 		}
@@ -602,7 +608,7 @@ public final class NativeLibrary {
 						+ Sha256.short12(c.actualSha) + "). Reinstall the plugin and restart the engine.";
 			case ARCH_MISMATCH:
 			case WRONG_FORMAT:
-				return "The installed native is for " + fileArch(c) + ", this engine runs "
+				return "The installed native is for " + fileArch(c) + "; this engine runs "
 						+ c.platform.describe() + ". Reinstall the plugin for this platform and restart.";
 			case HOST_LOADER_CONFLICT:
 				return "Restart the engine; the library is held by another classloader in this JVM.";
@@ -663,15 +669,15 @@ public final class NativeLibrary {
 		}
 	}
 
+	/** The architecture read from the file, or a neutral phrase when it could not be read. */
 	private static String fileArch(Context c) {
 		if (c.header == null) {
 			c.header = header(c.file);
 		}
-		if (c.header == null || c.header.archName().isEmpty()) {
-			return "an unrecognised architecture";
-		}
 
-		return c.header.archName();
+		String arch = c.header == null ? "" : c.header.arch();
+
+		return arch.isEmpty() || "other".equals(arch) ? "another architecture" : arch;
 	}
 
 	private static String fileFormat(Context c) {

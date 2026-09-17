@@ -9,13 +9,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /**
  * Streaming sha256, lowercase hex. Measured at 0.006 s page-cached over the 7.9 MB native.
  */
 public final class Sha256 {
-
-	private static final char[] HEX = "0123456789abcdef".toCharArray();
 
 	private static final int BUFFER_SIZE = 64 * 1024;
 
@@ -40,7 +39,7 @@ public final class Sha256 {
 			digest.update(buffer, 0, read);
 		}
 
-		return hex(digest.digest());
+		return HexFormat.of().formatHex(digest.digest());
 	}
 
 	/** The first 12 hex characters, as the two pinned log lines print them. Empty stays empty. */
@@ -60,18 +59,5 @@ public final class Sha256 {
 			// Every JRE ships SHA-256; this cannot happen on a conforming runtime.
 			throw new IllegalStateException("SHA-256 not available", e);
 		}
-	}
-
-	private static String hex(byte[] bytes) {
-		char[] out = new char[bytes.length * 2];
-
-		for (int i = 0; i < bytes.length; i++) {
-			int b = bytes[i] & 0xff;
-
-			out[i * 2] = HEX[b >>> 4];
-			out[i * 2 + 1] = HEX[b & 0x0f];
-		}
-
-		return new String(out);
 	}
 }
