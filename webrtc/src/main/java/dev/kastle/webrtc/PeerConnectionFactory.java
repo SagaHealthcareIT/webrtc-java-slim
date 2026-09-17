@@ -17,7 +17,6 @@
 package dev.kastle.webrtc;
 
 import dev.kastle.webrtc.internal.DisposableNativeObject;
-import dev.kastle.webrtc.internal.NativeLoader;
 
 /**
  * The PeerConnectionFactory is the main entry point for a WebRTC application.
@@ -26,16 +25,6 @@ import dev.kastle.webrtc.internal.NativeLoader;
  * @author Alex Andres
  */
 public class PeerConnectionFactory extends DisposableNativeObject {
-
-	static {
-		try {
-			NativeLoader.loadLibrary("webrtc-java");
-		}
-		catch (Exception e) {
-			throw new RuntimeException("Load library 'webrtc-java' failed", e);
-		}
-	}
-
 
 	private long networkThreadHandle;
 
@@ -46,8 +35,14 @@ public class PeerConnectionFactory extends DisposableNativeObject {
 
     /**
      * Creates an instance of PeerConnectionFactory.
+     *
+     * @throws NativeUnavailableException if the WebRTC native library cannot be loaded. The load is
+     *                                    attempted here, on the caller's thread, and never from a
+     *                                    static initializer: a throwing {@code <clinit>} would poison
+     *                                    this class for the rest of the JVM's life.
      */
     public PeerConnectionFactory() {
+        NativeLibrary.ensureLoaded();   // throws NativeUnavailableException; never inside <clinit>
         initialize();
     }
 

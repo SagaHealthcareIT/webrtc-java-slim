@@ -19,19 +19,22 @@ package dev.kastle.webrtc.logging;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
-import dev.kastle.webrtc.internal.NativeLoader;
+import dev.kastle.webrtc.NativeLibrary;
 
+/**
+ * WebRTC's logging facade.
+ *
+ * <p>There is deliberately no static initializer here: a {@code <clinit>} that throws poisons this
+ * class for the JVM's lifetime. The non-native wrappers below load the library on the caller's
+ * thread instead.
+ *
+ * <p>The five {@code native} declarations are <strong>not</strong> wrapped and must not be renamed:
+ * their exported symbols ({@code Java_dev_kastle_webrtc_logging_Logging_*}) are part of the shipped
+ * binary. A direct call to one of them on an unloaded library therefore throws a raw
+ * {@link UnsatisfiedLinkError} rather than a {@code NativeUnavailableException} — call
+ * {@link NativeLibrary#ensureLoaded()} first if you use them directly.
+ */
 public class Logging {
-
-	static {
-		try {
-			NativeLoader.loadLibrary("webrtc-java");
-		}
-		catch (Exception e) {
-			throw new RuntimeException("Load library 'webrtc-java' failed", e);
-		}
-	}
-
 
 	public enum Severity {
 
@@ -74,22 +77,32 @@ public class Logging {
 	public static native void logTimestamps(boolean enable);
 
 	public static void verbose(String message) {
+		NativeLibrary.ensureLoaded();
+
 		log(Severity.VERBOSE, message);
 	}
 
 	public static void info(String message) {
+		NativeLibrary.ensureLoaded();
+
 		log(Severity.INFO, message);
 	}
 
 	public static void warn(String message) {
+		NativeLibrary.ensureLoaded();
+
 		log(Severity.WARNING, message);
 	}
 
 	public static void error(String message) {
+		NativeLibrary.ensureLoaded();
+
 		log(Severity.ERROR, message);
 	}
 
 	public static void error(String message, Throwable e) {
+		NativeLibrary.ensureLoaded();
+
 		log(Severity.ERROR, message);
 		log(Severity.ERROR, e.toString());
 		log(Severity.ERROR, getStackTraceString(e));
