@@ -23,6 +23,8 @@
 
 jni::JavaContext * javaContext = nullptr;
 
+// Must not touch PeerConnectionFactory/Logging members: they call NativeLibrary.ensureLoaded(),
+// which holds the loader lock while System.load is in progress.
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void * reserved)
 {
 	JNIEnv * env = nullptr;

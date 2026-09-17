@@ -71,6 +71,10 @@ val configureNative by tasks.registering(Exec::class) {
 
     args("-DWEBRTC_BRANCH=$webrtcBranch")
     args("-DOUTPUT_NAME_SUFFIX=$targetPlatform")
+
+    // Feeds the Windows VERSIONINFO resource (FileVersion / ProductVersion), which AppLocker and
+    // WDAC publisher rules key on.
+    args("-DWEBRTC_JAVA_VERSION=${project.version}")
     args("-DCMAKE_INSTALL_PREFIX=${layout.buildDirectory.dir("install").get().asFile.absolutePath}")
     args("-DCMAKE_EXPORT_COMPILE_COMMANDS=1")
 }
