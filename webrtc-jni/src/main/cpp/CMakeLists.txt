@@ -58,6 +58,9 @@ elseif(WIN32)
     set(CMAKE_CXX_FLAGS_RELEASE "/MT")
     set(CMAKE_CXX_FLAGS_DEBUG "/MTd")
     set(SOURCE_TARGET windows)
+
+    # The VERSIONINFO resource below is a resource script, not C++.
+    enable_language(RC)
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL Clang AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
@@ -76,6 +79,31 @@ list(APPEND SOURCES
     ${SOURCES_API}
     ${SOURCES_RTC}
 )
+
+if(WIN32)
+    # Windows application control (AppLocker / WDAC) writes publisher rules against the PE
+    # VERSIONINFO resource - ProductName, OriginalFilename, FileVersion. Without it an administrator
+    # can only write a hash rule, and a hash rule breaks on every release. Authenticode signing does
+    # not add this resource; it has to be compiled in here.
+    if(NOT WEBRTC_JAVA_VERSION)
+        set(WEBRTC_JAVA_VERSION "0.0.0")
+    endif()
+
+    set(WEBRTC_JAVA_DLL_NAME "${PROJECT_NAME}-${OUTPUT_NAME_SUFFIX}.dll")
+
+    # FILEVERSION is four integers; the Gradle version is "major.minor.patch".
+    string(REGEX MATCHALL "[0-9]+" WEBRTC_JAVA_VERSION_PARTS "${WEBRTC_JAVA_VERSION}")
+    list(APPEND WEBRTC_JAVA_VERSION_PARTS 0 0 0 0)
+    list(SUBLIST WEBRTC_JAVA_VERSION_PARTS 0 4 WEBRTC_JAVA_VERSION_PARTS)
+    list(JOIN WEBRTC_JAVA_VERSION_PARTS "," WEBRTC_JAVA_VERSION_COMMA)
+
+    message(STATUS "VERSIONINFO: ${WEBRTC_JAVA_DLL_NAME} ${WEBRTC_JAVA_VERSION} (${WEBRTC_JAVA_VERSION_COMMA})")
+
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/version.rc" @ONLY)
+
+    list(APPEND SOURCES "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
+endif()
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
@@ -102,6 +130,21 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
 )
+
+if(LINUX)
+    # Ship no RPATH/RUNPATH. target_link_directories() on the WebRTC build tree otherwise leaks the
+    # builder's absolute path into DT_RUNPATH (and a trailing empty element, which is the current
+    # directory) - harmless at runtime, because the only NEEDED entries are libc, libm and the
+    # loader, but an automatic SCA/EDR finding on exactly the audited hosts this library runs on.
+    # Set on the target, not through variables, so it cannot depend on evaluation order.
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        SKIP_BUILD_RPATH TRUE
+        BUILD_WITH_INSTALL_RPATH TRUE
+        BUILD_RPATH_USE_LINK_PATH FALSE
+        INSTALL_RPATH_USE_LINK_PATH FALSE
+        INSTALL_RPATH ""
+    )
+endif()
 
 target_link_libraries(${PROJECT_NAME} jni-voithos)
 target_link_libraries(${PROJECT_NAME} webrtc)

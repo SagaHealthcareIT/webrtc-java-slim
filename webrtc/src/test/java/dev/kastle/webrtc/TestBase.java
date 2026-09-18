@@ -36,6 +36,10 @@ public abstract class TestBase {
 
 	@BeforeAll
 	protected void initFactory() {
+		// There is no default NativeSource: the host says where its native lives, and in this repo
+		// the host is the test classpath.
+		NativeTestSupport.configureAndLoad();
+
 		factory = new PeerConnectionFactory();
 	}
 

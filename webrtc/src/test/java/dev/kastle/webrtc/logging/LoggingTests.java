@@ -21,12 +21,24 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import dev.kastle.webrtc.NativeTestSupport;
 import dev.kastle.webrtc.PeerConnectionFactory;
 import dev.kastle.webrtc.logging.Logging.Severity;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class LoggingTests {
+
+	/**
+	 * {@code addLogSink} and {@code log} are raw {@code native} declarations with no
+	 * {@code ensureLoaded()} seam of their own — deliberately, so their exported JNI symbols do not
+	 * move — so the library has to be loaded before the first one is called.
+	 */
+	@BeforeEach
+	void loadNative() {
+		NativeTestSupport.configureAndLoad();
+	}
 
 	@Test
 	void logInfo() throws Exception {
