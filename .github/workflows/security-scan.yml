@@ -13,7 +13,7 @@ name: Security scan
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [master, 'release/*']
   workflow_dispatch:
 
 permissions:
@@ -93,7 +93,10 @@ jobs:
               | grep -v '^0*$' | sort -u > "$RUNNER_TEMP/blobs" || true
             if [ -s "$RUNNER_TEMP/blobs" ]; then
               auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$tok" | base64 -w0)"
-              git -c "http.https://github.com/.extraheader=$auth" fetch -q --no-tags \
+              # No "have" lines (noop negotiation, as git's own lazy fetch does): a have
+              # claims every object its commit reaches, which this blob:none clone lacks,
+              # and lets the server leave the wanted blobs out of the pack.
+              git -c "http.https://github.com/.extraheader=$auth" -c fetch.negotiationAlgorithm=noop fetch -q --no-tags \
                 --no-write-fetch-head --recurse-submodules=no --filter=blob:none origin --stdin < "$RUNNER_TEMP/blobs"
               unset auth
               # gitleaks reports "no leaks" if git cannot read a blob, so prove they are all here.
@@ -160,7 +163,8 @@ jobs:
               | awk '$1 != ":160000" { print $3 }' | grep -v '^0*$' | sort -u > /tmp/blobs || true
             if [ -s /tmp/blobs ]; then
               auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$tok" | base64 -w0)"
-              git -c "http.https://github.com/.extraheader=$auth" fetch -q --no-tags \
+              # No "have" lines: see the same fetch in the secrets job.
+              git -c "http.https://github.com/.extraheader=$auth" -c fetch.negotiationAlgorithm=noop fetch -q --no-tags \
                 --no-write-fetch-head --recurse-submodules=no --filter=blob:none origin --stdin < /tmp/blobs
               unset auth
             fi
