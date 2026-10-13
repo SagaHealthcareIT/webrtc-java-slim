@@ -1,0 +1,185 @@
+# Free, open-source security scanning: secrets (gitleaks), dependencies
+# (OSV-Scanner) and code (Semgrep Community Edition). No paid GitHub add-ons,
+# no third-party accounts or tokens.
+#
+# What each job looks at:
+#   pull_request       only what the PR adds (its commits / changed code / new vulnerable deps)
+#   push               only the pushed range (secrets, SAST); dependencies: the whole tree
+#   workflow_dispatch  full audit: every commit of every branch, the whole tree
+#
+# Tool versions are pinned; bump them together (binaries are checksum-verified).
+name: Security scan
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR supersedes the previous run. Branch pushes are never
+# cancelled: each one scans its own commit range.
+concurrency:
+  group: security-scan-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}-{2}', github.event_name, github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+  OSV_SCANNER_VERSION: 2.6.0
+  OSV_SCANNER_SHA256: ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
+
+jobs:
+  secrets:
+    name: Secrets (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # PR / push: all commits but no file contents (blob:none, implied by the
+      # sparse checkout); the blobs of the scanned range are fetched below.
+      # workflow_dispatch: full clone for the full-history audit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout: ${{ github.event_name != 'workflow_dispatch' && '/.gitleaks*' || '' }}
+          sparse-checkout-cone-mode: false
+
+      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Scan for secrets
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          FETCH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The token is used only for the blob fetch below; gitleaks never sees it.
+          tok="$FETCH_TOKEN"; unset FETCH_TOKEN
+          # Never fetch objects on demand: the checkout has no credentials, and
+          # a missing blob must fail loudly rather than be skipped.
+          export GIT_NO_LAZY_FETCH=1
+          case "$EVENT" in
+            pull_request) range=("$PR_BASE..$PR_HEAD") ;;
+            push)
+              if [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                # New branch (or unknown old tip): commits no other branch has.
+                range=("$AFTER" --not --exclude=origin/HEAD "--exclude=origin/$BRANCH" --remotes=origin)
+              else
+                range=("$BEFORE..$AFTER")
+              fi ;;
+            *) range=() ;;
+          esac
+
+          if [ ${#range[@]} -gt 0 ]; then
+            echo "Commit range: ${range[*]} ($(git rev-list --count "${range[@]}") commits)"
+            # Fetch the old and new blob of every file the range touches, in one request.
+            git log --format= --raw --no-abbrev --no-renames "${range[@]}" \
+              | awk '$1 != ":160000" && $2 != "160000" { print $3; print $4 }' \
+              | grep -v '^0*$' | sort -u > "$RUNNER_TEMP/blobs" || true
+            if [ -s "$RUNNER_TEMP/blobs" ]; then
+              auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$tok" | base64 -w0)"
+              git -c "http.https://github.com/.extraheader=$auth" fetch -q --no-tags \
+                --no-write-fetch-head --recurse-submodules=no --filter=blob:none origin --stdin < "$RUNNER_TEMP/blobs"
+              unset auth
+              # gitleaks reports "no leaks" if git cannot read a blob, so prove they are all here.
+              missing=$(git cat-file --batch-check < "$RUNNER_TEMP/blobs" | grep -c ' missing$' || true)
+              if [ "$missing" != 0 ]; then echo "::error::$missing blobs could not be fetched"; exit 1; fi
+            fi
+            args=(--log-opts="${range[*]}")
+          else
+            echo "Full-history scan of all branches"
+            args=()
+          fi
+          unset tok
+          [ -f .gitleaks-baseline.json ] && args+=(--baseline-path .gitleaks-baseline.json)
+
+          # --redact: secret values never reach the log. Findings show rule, file, line and commit.
+          # A .gitleaks.toml at the repo root, if present, is picked up automatically.
+          set +e
+          gitleaks git --redact --no-banner --no-color --verbose "${args[@]}" . 2> "$RUNNER_TEMP/gitleaks.log"
+          rc=$?
+          set -e
+          cat "$RUNNER_TEMP/gitleaks.log" >&2
+          if grep -q ' ERR ' "$RUNNER_TEMP/gitleaks.log"; then echo "::error::gitleaks hit an error; the scan is incomplete"; exit 1; fi
+          exit $rc
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
+    steps:
+      # All commits, but only the checked-out tree's file contents; the old
+      # versions of the changed files are fetched below for the baseline.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      # PR: report only findings the PR introduces (baseline = the base branch
+      # tip that GitHub merged the PR into). Push: only what the push
+      # introduces. workflow_dispatch: the whole tree.
+      - name: Semgrep (p/default)
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          FETCH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          # The container runs as root; the workspace is owned by the runner user.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # The token is used only for the blob fetch below; semgrep never sees it.
+          tok="$FETCH_TOKEN"; unset FETCH_TOKEN
+          export GIT_NO_LAZY_FETCH=1
+          baseline=""
+          case "$EVENT" in
+            pull_request) baseline=$(git rev-parse HEAD^1) ;;
+            push) if ! echo "$BEFORE" | grep -qE '^0+$' && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then baseline="$BEFORE"; fi ;;
+          esac
+          if [ -n "$baseline" ]; then
+            echo "Reporting only findings not present at $baseline"
+            export SEMGREP_BASELINE_COMMIT="$baseline"
+            # Semgrep checks out the baseline; fetch the old versions of the changed files in one request.
+            git diff --raw --no-abbrev --no-renames "$baseline" HEAD \
+              | awk '$1 != ":160000" { print $3 }' | grep -v '^0*$' | sort -u > /tmp/blobs || true
+            if [ -s /tmp/blobs ]; then
+              auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$tok" | base64 -w0)"
+              git -c "http.https://github.com/.extraheader=$auth" fetch -q --no-tags \
+                --no-write-fetch-head --recurse-submodules=no --filter=blob:none origin --stdin < /tmp/blobs
+              unset auth
+            fi
+          else
+            echo "Scanning the whole tree"
+          fi
+          unset tok
+          rc=0
+          semgrep scan --config p/default --metrics=off --disable-version-check \
+            --json-output=/tmp/semgrep.json || rc=$?
+          # 0 = ran (findings or not), 1 = findings with --error; anything else is a failed run.
+          if [ "$rc" -gt 1 ]; then echo "::error::semgrep failed (exit $rc)"; exit "$rc"; fi
+          # Block on WARNING/MEDIUM and above; INFO/LOW findings are shown but do not fail the job.
+          total=$(jq '.results | length' /tmp/semgrep.json)
+          blocking=$(jq '[.results[] | select(.extra.severity | IN("INFO", "LOW") | not)] | length' /tmp/semgrep.json)
+          printf '### Semgrep\n\n%s finding(s), %s blocking (WARNING/MEDIUM or higher)%s\n' \
+            "$total" "$blocking" "${baseline:+, new relative to \`$baseline\`}" >> "$GITHUB_STEP_SUMMARY"
+          echo "$total finding(s), $blocking blocking"
+          if [ "$blocking" -gt 0 ]; then
+            echo "::error::$blocking Semgrep finding(s) at WARNING or higher. Fix them, or suppress a false positive with a 'nosemgrep: <rule-id>' comment that says why."
+            exit 1
+          fi
