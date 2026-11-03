@@ -1,3 +1,16 @@
+--- a/build/config/win/BUILD.gn
++++ b/build/config/win/BUILD.gn
+@@ -305,7 +305,9 @@
+ # manually override this config for their compiles.
+ config("winver") {
+   defines = [
+-    "NTDDI_VERSION=NTDDI_WIN11_BR",
++    # webrtc-java-slim: NTDDI_WIN11_BR comes with SDK 10.0.28000; this build uses
++    # 10.0.26100 (use_windows_sdk_26100.patch), whose newest is NTDDI_WIN11_GE.
++    "NTDDI_VERSION=NTDDI_WIN11_GE",
+ 
+     # We can't say `=_WIN32_WINNT_WIN10` here because some files do
+     # `#if WINVER < 0x0600` without including windows.h before,
 --- a/build/toolchain/win/setup_toolchain.py
 +++ b/build/toolchain/win/setup_toolchain.py
 @@ -21,7 +21,9 @@
