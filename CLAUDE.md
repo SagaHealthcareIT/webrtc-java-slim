@@ -9,7 +9,7 @@ Published to Maven Central as `com.saga-it.webrtc:webrtc-java` (the Java module 
 - **Language**: Java + C/C++ (JNI bindings)
 - **Build**: Gradle (Kotlin DSL) — use `./gradlew` wrapper
 - **Native build**: Requires `clang` and `cmake` on PATH
-- **WebRTC version**: Configured via `webrtc.branch` in `webrtc-jni/gradle.properties` (currently `branch-heads/7922` = Chromium **M151**)
+- **WebRTC version**: Configured via `webrtc.branch` in `webrtc-jni/gradle.properties` (currently `branch-heads/8127` = Chromium **M158**)
 
 ## Upstream / fork status
 
@@ -18,6 +18,15 @@ This fork tracks Kas-tle/webrtc-java (the `dev.kastle` slim fork of devopvoid/we
 **Milestone branches go end-of-life.** Check `curl -s 'https://chromiumdash.appspot.com/fetch_milestones?only_branched=true'` for `schedule_active` before assuming an unmoved `webrtc.branch` head is healthy — a frozen head usually means the branch stopped receiving security merge-backs, not that there was nothing to fix. The security payload of a bump is mostly the *transitive* BoringSSL revision that the branch's `DEPS` pins, which no dependency scanner reports (BoringSSL issues no CVEs).
 
 The M149 → M151 bump (2026-07-25) was cheap on the binding side: `api/data_channel_interface.h` was byte-identical across M149/M150/M151, both required patches applied unmodified, and every `rtc_*` gn arg we pass survived. The two API breaks in range — `LOG_ERROR` → `RTC_LOG_ERROR` and `SSLAdapter::SetMode` removal — touch symbols this JNI never used. The one suspected hazard — `rtc_base/logging.h` dropping its `std::ostringstream` fallback `MakeVal` overload — turned out to be a non-issue: that fallback only ever served arbitrary *class* types, and both `RTC_LOG` call sites log types with surviving dedicated overloads (`JNI_Logging.cpp` logs a `std::string` → `kStdString`; `src/api/RTCStats.cpp` logs `stats.type()`, still `const char*` → `kCharP`). Validated by a full cold linux-x86_64 build off the M151 pin plus the whole test suite green.
+
+The M151 → M158 bump (2026-11-03) needed two binding changes and one patch refresh. M151's branch head never moved after its 2026-06-29 cut, so it never got a security merge-back; the BoringSSL pin moves `be08ef39` (06-27) → `af41e135` (10-21). Upstreams at the time: devopvoid on M155 (`branch-heads/8059`), Kas-tle unchanged since 2026-03.
+- **Worker thread removed** (`WEBRTC_REMOVED_WORKER_THREAD`): the network thread is also the worker thread, and `PeerConnectionFactoryDependencies` has no `worker_thread`. `JNI_PeerConnectionFactory.cpp` no longer creates one and `PeerConnectionFactory.java` lost `workerThreadHandle`.
+- **`CopyOnWriteBuffer(const T*, size_t)` removed**: `JNI_RTCDataChannel.cpp` uses the `std::span<const uint8_t>` constructor, which still copies (the byte-array path releases the array with `JNI_ABORT` right after, so it must).
+- **`use_system_ssl_root_certs.patch`**: one context line changed (`openssl::SSLInfoCallback`); all three copies refreshed, CRLF kept.
+- **Left as a warning:** `LogMessage::LogThreads` is deprecated in favour of the one-shot `InitializeLogging(LoggingConfig)`. Porting it means redesigning the Java `Logging` toggles; nothing in gateway, the plugin or the launcher calls `Logging.logThreads`. Expect removal in a later milestone.
+- `libwebrtc.a` now compiles dav1d even with `rtc_include_dav1d_in_internal_decoder_factory=false`, but nothing references it, so it is not linked (the linux-x86_64 `.so` is 8.2 MB vs 7.9 MB at 1.3.0).
+
+Validated by a cold linux-x86_64 build off the M158 pin (3635 ninja steps) with all 87 tests green. `RTCDataChannelTests.binaryDirectBufferWindow` is new with this bump: before it, nothing in the suite sent through the direct-buffer path, which gateway's `DataChannelStream` uses for bulk tunnel data. It checks the position/limit window byte for byte and that the bytes are copied at send time (it fails if the native side ignores `position`).
 
 ## Project Structure
 

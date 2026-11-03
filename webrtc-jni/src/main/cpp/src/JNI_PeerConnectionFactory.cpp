@@ -41,12 +41,9 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_PeerConnectionFactory_initialize
         return;
     }
 
-    std::unique_ptr<webrtc::Thread> workerThread = webrtc::Thread::Create();
-    workerThread->SetName("webrtc_jni_worker_thread", nullptr);
-    if (!workerThread->Start()) {
-        env->Throw(jni::JavaRuntimeException(env, "Start worker thread failed"));
-        return;
-    }
+    // No worker thread: WebRTC removed it after M151 (by M158 the network thread
+    // is also the worker thread, and PeerConnectionFactoryDependencies has no
+    // worker_thread field: WEBRTC_REMOVED_WORKER_THREAD, bugs.webrtc.org/558821261).
 
     // Store thread handles to Java fields for cleanup in dispose().
     // The factory does not take ownership of externally-provided threads
@@ -54,12 +51,10 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_PeerConnectionFactory_initialize
     // so dispose() must stop and delete them.
     SetHandle(env, caller, "networkThreadHandle", networkThread.get());
     SetHandle(env, caller, "signalingThreadHandle", signalingThread.get());
-    SetHandle(env, caller, "workerThreadHandle", workerThread.get());
 
     webrtc::PeerConnectionFactoryDependencies dependencies;
 
     dependencies.network_thread = networkThread.release();
-    dependencies.worker_thread = workerThread.release();
     dependencies.signaling_thread = signalingThread.release();
 
     webrtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> factory = 
@@ -81,7 +76,6 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_PeerConnectionFactory_dispose
 
 	std::unique_ptr<webrtc::Thread> networkThread(GetHandle<webrtc::Thread>(env, caller, "networkThreadHandle"));
 	std::unique_ptr<webrtc::Thread> signalingThread(GetHandle<webrtc::Thread>(env, caller, "signalingThreadHandle"));
-	std::unique_ptr<webrtc::Thread> workerThread(GetHandle<webrtc::Thread>(env, caller, "workerThreadHandle"));
 
 	webrtc::RefCountReleaseStatus status = factory->Release();
 
@@ -100,9 +94,6 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_PeerConnectionFactory_dispose
     }
     if (signalingThread) {
         signalingThread->Stop();
-    }
-    if (workerThread) {
-        workerThread->Stop();
     }
 }
 

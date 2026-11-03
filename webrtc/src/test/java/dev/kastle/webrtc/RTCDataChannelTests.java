@@ -25,7 +25,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -105,11 +108,57 @@ class RTCDataChannelTests extends TestBase {
 		callee.close();
 	}
 
+	/**
+	 * The direct-buffer send path (the one gateway's DataChannelStream uses)
+	 * must send exactly the position/limit window, byte for byte, and must copy
+	 * it: changing the buffer right after send() must not change what arrives.
+	 */
+	@Test
+	void binaryDirectBufferWindow() throws Exception {
+		DataPeerConnection caller = new DataPeerConnection(factory);
+		DataPeerConnection callee = new DataPeerConnection(factory);
+
+		caller.setRemotePeerConnection(callee);
+		callee.setRemotePeerConnection(caller);
+
+		callee.setRemoteDescription(caller.createOffer());
+		caller.setRemoteDescription(callee.createAnswer());
+
+		caller.waitUntilConnected();
+		callee.waitUntilConnected();
+		caller.waitUntilLocalChannelOpen();
+
+		// High-bit bytes 0x80..0x8F; send only [3, 9).
+		ByteBuffer direct = ByteBuffer.allocateDirect(16);
+		for (int i = 0; i < 16; i++) {
+			direct.put(i, (byte) (0x80 + i));
+		}
+		direct.position(3).limit(9);
+		byte[] expected = new byte[] { (byte) 0x83, (byte) 0x84, (byte) 0x85, (byte) 0x86, (byte) 0x87, (byte) 0x88 };
+
+		caller.getLocalDataChannel().send(new RTCDataChannelBuffer(direct, true));
+
+		ByteBuffer whole = direct.duplicate().clear();
+		for (int i = 0; i < 16; i++) {
+			whole.put(i, (byte) 0);
+		}
+
+		byte[] received = callee.pollReceivedBinary();
+
+		Assertions.assertNotNull(received, "binary message should arrive within 5 s");
+		Assertions.assertArrayEquals(expected, received);
+
+		caller.close();
+		callee.close();
+	}
+
 
 
 	private static class DataPeerConnection extends TestPeerConnection {
 
 		private final List<String> receivedTexts = new ArrayList<>();
+
+		private final BlockingQueue<byte[]> receivedBinary = new LinkedBlockingQueue<>();
 
 		private final RTCDataChannel localDataChannel;
 
@@ -153,6 +202,18 @@ class RTCDataChannelTests extends TestBase {
 			return receivedTexts;
 		}
 
+		byte[] pollReceivedBinary() throws InterruptedException {
+			return receivedBinary.poll(5, TimeUnit.SECONDS);
+		}
+
+		void waitUntilLocalChannelOpen() throws InterruptedException {
+			long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+			while (localDataChannel.getState() != RTCDataChannelState.OPEN) {
+				assertTrue(System.nanoTime() < deadline, "data channel should open within 5 s");
+				Thread.sleep(20);
+			}
+		}
+
 		void sendTextMessage(String message) throws Exception {
 			ByteBuffer data = ByteBuffer.wrap(message.getBytes(StandardCharsets.UTF_8));
 			RTCDataChannelBuffer buffer = new RTCDataChannelBuffer(data, false);
@@ -161,6 +222,14 @@ class RTCDataChannelTests extends TestBase {
 		}
 
 		private void decodeMessage(RTCDataChannelBuffer buffer) {
+			if (buffer.binary) {
+				ByteBuffer window = buffer.data.duplicate();
+				byte[] bytes = new byte[window.remaining()];
+				window.get(bytes);
+				receivedBinary.add(bytes);
+				return;
+			}
+
 			ByteBuffer byteBuffer = buffer.data;
 			byte[] payload;
 
