@@ -1,0 +1,26 @@
+--- a/build/toolchain/win/setup_toolchain.py
++++ b/build/toolchain/win/setup_toolchain.py
+@@ -21,7 +21,9 @@
+ import gn_helpers
+ 
+ SCRIPT_DIR = os.path.dirname(__file__)
+-SDK_VERSION = '10.0.28000.0'
++# webrtc-java-slim: GitHub's Windows runner images top out at SDK 10.0.26100
++# (what M151 built with); drop this patch once they ship 10.0.28000.
++SDK_VERSION = '10.0.26100.0'
+ MSVC_DIR = re.compile('^.*/VC/Tools/MSVC/[^/]+/include$')
+ WINDOWS_KITS_DIR = re.compile(r'^(.*/Windows Kits/\d+/Include/[^/]+)/.*')
+ 
+--- a/build/vs_toolchain.py
++++ b/build/vs_toolchain.py
+@@ -60,7 +60,9 @@
+ #   Make sure any version numbers in the documentation match the code.
+ #
+ TOOLCHAIN_HASH = '3bfcb536c8'
+-SDK_VERSION = '10.0.28000.0'
++# webrtc-java-slim: GitHub's Windows runner images top out at SDK 10.0.26100
++# (what M151 built with); drop this patch once they ship 10.0.28000.
++SDK_VERSION = '10.0.26100.0'
+ 
+ # Visual Studio versions are listed in descending order of priority.
+ # The first version is assumed by this script to be the one that is packaged,
