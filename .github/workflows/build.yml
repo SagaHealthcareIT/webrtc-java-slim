@@ -187,9 +187,9 @@ jobs:
           - name: macos
             arch: aarch64
             runs-on: macos-15
-          - name: macos
-            arch: aarch64
-            runs-on: macos-26
+          # macos-26 is out until GitHub has capacity for it again: on 2026-11-04
+          # it went six attempts without a runner ("not acquired by Runner of
+          # type hosted") and blocked the 1.4.0 release. Put it back here.
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
