@@ -20,12 +20,14 @@ import static java.util.Objects.nonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -152,13 +154,66 @@ class RTCDataChannelTests extends TestBase {
 		callee.close();
 	}
 
+	/**
+	 * Once onMessage returns, nothing on the native side may keep the received
+	 * buffer reachable. The callback runs on a libwebrtc thread that stays
+	 * attached to the JVM, so a JNI local reference left undeleted there pins
+	 * every message until the thread exits, i.e. for the life of the
+	 * connection (RTC-1).
+	 */
+	@Test
+	void receivedBuffersAreNotRetained() throws Exception {
+		DataPeerConnection caller = new DataPeerConnection(factory);
+		DataPeerConnection callee = new DataPeerConnection(factory);
 
+		caller.setRemotePeerConnection(callee);
+		callee.setRemotePeerConnection(caller);
+
+		callee.setRemoteDescription(caller.createOffer());
+		caller.setRemoteDescription(callee.createAnswer());
+
+		caller.waitUntilConnected();
+		callee.waitUntilConnected();
+		caller.waitUntilLocalChannelOpen();
+
+		final int count = 32;
+		for (int i = 0; i < count; i++) {
+			caller.getLocalDataChannel().send(new RTCDataChannelBuffer(ByteBuffer.wrap(new byte[16 * 1024]), true));
+		}
+		for (int i = 0; i < count; i++) {
+			Assertions.assertNotNull(callee.pollReceivedBinary(), "message " + i + " should arrive within 5 s");
+		}
+
+		// The connection stays open: the leak only lets go when the thread does.
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+		long retained;
+		do {
+			System.gc();
+			Thread.sleep(50);
+			retained = callee.receivedBufferRefs.stream().filter(ref -> ref.get() != null).count();
+		}
+		while (retained > 0 && System.nanoTime() < deadline);
+
+		assertEquals(count, callee.receivedBufferRefs.size());
+		assertEquals(0, retained, "received buffers still reachable after onMessage returned");
+
+		caller.close();
+		callee.close();
+	}
 
 	private static class DataPeerConnection extends TestPeerConnection {
 
 		private final List<String> receivedTexts = new ArrayList<>();
 
 		private final BlockingQueue<byte[]> receivedBinary = new LinkedBlockingQueue<>();
+
+		/**
+		 * The payload array of every binary buffer onMessage was handed, held
+		 * weakly. It is reachable through the RTCDataChannelBuffer, its
+		 * ByteBuffer and the array itself, so a native reference leaked to any
+		 * of the three keeps it alive.
+		 */
+		private final List<WeakReference<byte[]>> receivedBufferRefs = new CopyOnWriteArrayList<>();
 
 		private final RTCDataChannel localDataChannel;
 
@@ -223,6 +278,7 @@ class RTCDataChannelTests extends TestBase {
 
 		private void decodeMessage(RTCDataChannelBuffer buffer) {
 			if (buffer.binary) {
+				receivedBufferRefs.add(new WeakReference<>(buffer.data.array()));
 				ByteBuffer window = buffer.data.duplicate();
 				byte[] bytes = new byte[window.remaining()];
 				window.get(bytes);

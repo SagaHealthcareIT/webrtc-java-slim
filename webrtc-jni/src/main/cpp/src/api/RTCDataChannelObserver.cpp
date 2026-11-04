@@ -52,7 +52,11 @@ namespace jni
 			return;
 		}
 
-		env->CallVoidMethod(observer, javaClass->onMessage, jBuffer.release());
+		// Pass get(), never release(): jBuffer must delete its local reference
+		// when this returns. This libwebrtc thread attached once and never
+		// returns to Java, so a reference left undeleted pins the message copy
+		// until the thread exits, i.e. for the life of the tunnel (RTC-1).
+		env->CallVoidMethod(observer, javaClass->onMessage, jBuffer.get());
 
 		ExceptionCheck(env);
 	}
