@@ -22,8 +22,9 @@ namespace jni
 	{
 		const auto classUtils = JavaClasses::get<JavaClassUtils>(env);
 
-		jclass cls = env->GetObjectClass(javaRef.get());
-		jstring clsName = static_cast<jstring>(env->CallObjectMethod(cls, classUtils->getClassName));
+		// Owned, so the class reference is deleted (see GetFieldID).
+		JavaLocalRef<jclass> cls(env, env->GetObjectClass(javaRef.get()));
+		jstring clsName = static_cast<jstring>(env->CallObjectMethod(cls.get(), classUtils->getClassName));
 
 		return JavaString::toNative(env, JavaLocalRef<jstring>(env, clsName));
 	}

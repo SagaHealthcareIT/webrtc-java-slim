@@ -109,14 +109,17 @@ jfieldID GetHandleField(JNIEnv * env, jobject obj, const std::string & fieldName
 
 jfieldID GetFieldID(JNIEnv * env, jobject obj, const std::string & fieldName, const char * type)
 {
-	jclass cls = env->GetObjectClass(obj);
+	// Owned, so the class reference is deleted: on a native thread that stays
+	// attached (libwebrtc callbacks), an undeleted local reference is never
+	// freed, and every GetHandle/SetHandle call comes through here.
+	jni::JavaLocalRef<jclass> cls(env, env->GetObjectClass(obj));
 
-	if (cls == nullptr) {
+	if (cls.get() == nullptr) {
 		ExceptionCheck(env);
 		return nullptr;
 	}
 
-	return GetFieldID(env, cls, fieldName, type);
+	return GetFieldID(env, cls.get(), fieldName, type);
 }
 
 jfieldID GetFieldID(JNIEnv * env, jclass cls, const std::string & fieldName, const char * type)
