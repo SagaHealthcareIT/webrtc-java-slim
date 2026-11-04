@@ -8,3 +8,50 @@ runs:
     - name: Install required packages
       run: choco install ninja
       shell: powershell
+
+    # The pinned WebRTC (M158) hard-codes Windows SDK 10.0.28000 in
+    # build/vs_toolchain.py and build/toolchain/win/setup_toolchain.py, and no
+    # GitHub Windows image ships it yet (all top out at 10.0.26100). Building
+    # against 26100 instead breaks windows-aarch64: its UCRT wchar.h pulls
+    # clang's arm_neon.h into C linkage, which M158's clang rejects. 2270 is
+    # the build M158's vs_toolchain.py names. Drop this step once the runner
+    # images include 10.0.28000.
+    - name: Install Windows SDK 10.0.28000.2270
+      shell: powershell
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $ProgressPreference = 'SilentlyContinue'
+        # go.microsoft.com/fwlink/?linkid=2370315 (learn.microsoft.com Windows SDK downloads), resolved 2026-11-03.
+        $url = 'https://download.microsoft.com/download/78b533c3-6724-4e28-a984-b9fa93265781/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe'
+        $sha256 = 'E9F1BDE566381355E594E2F90DAF4F714EB5C7EF2C45C501CE236AFE2ABEA300'
+        $exe = Join-Path $env:RUNNER_TEMP 'winsdksetup.exe'
+        Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
+        $actual = (Get-FileHash -Algorithm SHA256 $exe).Hash
+        if ($actual -ne $sha256) { throw "winsdksetup.exe SHA-256 mismatch: $actual" }
+        $sig = Get-AuthenticodeSignature $exe
+        if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+          throw "winsdksetup.exe signature not valid: $($sig.Status) $($sig.SignerCertificate.Subject)"
+        }
+        $log = Join-Path $env:RUNNER_TEMP 'winsdk-install.log'
+        $p = Start-Process -FilePath $exe -Wait -PassThru -ArgumentList @(
+          # UWPCPP brings the winrt/cppwinrt headers: vcvarsall puts them on INCLUDE,
+          # and setup_toolchain.py fails if any INCLUDE directory is missing.
+          '/features', 'OptionId.DesktopCPPx64', 'OptionId.DesktopCPParm64', 'OptionId.UWPCPP', 'OptionId.WindowsDesktopDebuggers',
+          '/quiet', '/norestart', '/ceip', 'off', '/log', $log)
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+          Get-ChildItem $env:RUNNER_TEMP -Filter 'winsdk-install*.log' | ForEach-Object { Get-Content $_.FullName -Tail 40 }
+          throw "winsdksetup.exe exit code $($p.ExitCode)"
+        }
+        $kit = 'C:\Program Files (x86)\Windows Kits\10'
+        foreach ($f in @(
+            'Include\10.0.28000.0\um\windows.h',
+            'Include\10.0.28000.0\ucrt\wchar.h',
+            'Include\10.0.28000.0\shared',
+            'Include\10.0.28000.0\winrt',
+            'Include\10.0.28000.0\cppwinrt',
+            'Lib\10.0.28000.0\um\x64\kernel32.lib',
+            'Lib\10.0.28000.0\um\arm64\kernel32.lib',
+            'Lib\10.0.28000.0\ucrt\arm64\ucrt.lib')) {
+          if (-not (Test-Path (Join-Path $kit $f))) { throw "Windows SDK 10.0.28000 is missing $f" }
+        }
+        Write-Host "Windows SDK 10.0.28000.2270 installed"
