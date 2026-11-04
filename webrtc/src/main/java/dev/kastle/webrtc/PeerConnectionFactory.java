@@ -30,8 +30,6 @@ public class PeerConnectionFactory extends DisposableNativeObject {
 
 	private long signalingThreadHandle;
 
-	private long workerThreadHandle;
-
 
     /**
      * Creates an instance of PeerConnectionFactory.

@@ -24,6 +24,8 @@
 
 #include "api/data_channel_interface.h"
 
+#include <span>
+
 JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_registerObserver
 (JNIEnv * env, jobject caller, jobject jObserver)
 {
@@ -177,7 +179,8 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendDirectBuffer
 			return;
 		}
 
-		webrtc::CopyOnWriteBuffer data(address + position, static_cast<size_t>(length));
+		// Copies the window (CopyOnWriteBuffer's span constructor copies).
+		webrtc::CopyOnWriteBuffer data(std::span<const uint8_t>(address + position, static_cast<size_t>(length)));
 
 		try {
 			channel->Send(webrtc::DataBuffer(data, static_cast<bool>(isBinary)));
@@ -209,7 +212,9 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendByteArrayBuffer
 
 	size_t arrayLength = env->GetArrayLength(jBufferArray);
 
-	webrtc::CopyOnWriteBuffer data(arrayPtr, arrayLength);
+	// Must copy: the array is released (JNI_ABORT) right below, and
+	// CopyOnWriteBuffer's span constructor copies the bytes.
+	webrtc::CopyOnWriteBuffer data(std::span<const uint8_t>(reinterpret_cast<const uint8_t *>(arrayPtr), arrayLength));
 
 	env->ReleaseByteArrayElements(jBufferArray, arrayPtr, JNI_ABORT);
 

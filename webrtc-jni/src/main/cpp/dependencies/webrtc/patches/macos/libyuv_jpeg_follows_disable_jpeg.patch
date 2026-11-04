@@ -1,0 +1,20 @@
+--- a/common_video/BUILD.gn
++++ b/common_video/BUILD.gn
+@@ -7,6 +7,7 @@
+ # be found in the AUTHORS file in the root of the source tree.
+ 
+ import("../webrtc.gni")
++import("//third_party/libyuv/libyuv.gni")
+ 
+ rtc_library("corruption_score_calculator") {
+   sources = [ "include/corruption_score_calculator.h" ]
+@@ -98,7 +99,8 @@
+     ]
+   }
+ 
+-  if (!is_ios) {
++  # MJPGToI420 only exists when libyuv is built with JPEG support.
++  if (!is_ios && !libyuv_disable_jpeg) {
+     defines = [ "HAVE_LIBYUV_JPEG" ]
+   }
+ }
