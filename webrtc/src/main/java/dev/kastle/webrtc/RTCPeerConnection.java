@@ -18,6 +18,9 @@ package dev.kastle.webrtc;
 
 import dev.kastle.webrtc.internal.NativeObject;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * The RTCPeerConnection represents a WebRTC connection between the local
  * computer and a remote peer. Communications are coordinated by the exchange of
@@ -33,6 +36,18 @@ public class RTCPeerConnection extends NativeObject {
 	 */
 	private long observerHandle;
 
+	/**
+	 * Makes {@link #close()} run once. Not a lock held across close(): that
+	 * would deadlock with a callback that close() triggers and that calls
+	 * close() again.
+	 */
+	private final AtomicBoolean closed = new AtomicBoolean();
+
+	/**
+	 * Opens when the first close() has returned, so a later caller on another
+	 * thread does not go on (say, to dispose the factory) while it still runs.
+	 */
+	private final CountDownLatch closeDone = new CountDownLatch(1);
 
 	/**
 	 * Constructor used by the native api.
@@ -242,8 +257,63 @@ public class RTCPeerConnection extends NativeObject {
 
 	/**
 	 * Closes the peer connection, terminates all media and releases any used
-	 * resources.
+	 * resources, including the native peer connection object and its
+	 * observer. Call it before disposing the {@link PeerConnectionFactory}.
+	 * <p>
+	 * The native object is freed here, so this call must not run concurrently
+	 * with any other call on this connection (getStats, getSignalingState,
+	 * setConfiguration, createDataChannel...), and this object must not be
+	 * used afterwards. Before 1.4.1 it was never freed, which hid such races.
+	 * A {@link #getStats getStats} callback still pending when the connection
+	 * is freed is never called, so do not wait on one without a timeout.
+	 * <p>
+	 * Only the first call closes. A later call on another application thread
+	 * waits until the first has returned. A later call from an observer
+	 * callback (including one this close triggers, such as
+	 * {@code onConnectionChange(CLOSED)}) returns at once: waiting there would
+	 * block the thread the first close needs.
+	 * <p>
+	 * Called from inside an observer callback, close() frees the native
+	 * objects only after that callback returns. Dispose the factory after that,
+	 * not from the same callback.
+	 * <p>
+	 * close() waits for observer callbacks it fires on the signaling thread,
+	 * so do not call it while holding a lock those callbacks take.
 	 */
-	public native void close();
+	public void close() {
+		if (closed.compareAndSet(false, true)) {
+			try {
+				closeNative();
+			}
+			finally {
+				closeDone.countDown();
+			}
+		}
+		else if (!isLibWebRtcThread()) {
+			boolean interrupted = false;
+
+			while (true) {
+				try {
+					closeDone.await();
+					break;
+				}
+				catch (InterruptedException e) {
+					interrupted = true;
+				}
+			}
+
+			if (interrupted) {
+				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
+	private native void closeNative();
+
+	/**
+	 * Whether the calling thread is a libwebrtc thread, which for a call into
+	 * this library means it is inside an observer callback.
+	 */
+	private static native boolean isLibWebRtcThread();
 
 }

@@ -29,6 +29,13 @@ import java.nio.ByteBuffer;
 public class RTCDataChannel extends DisposableNativeObject {
 
 	/**
+	 * The native observer this channel registered, owned by the native api: it
+	 * is freed when replaced, unregistered or when this channel is disposed.
+	 */
+	@SuppressWarnings("unused")
+	private long observerHandle;
+
+	/**
 	 * Used by the native api.
 	 */
 	private RTCDataChannel() {
@@ -37,14 +44,23 @@ public class RTCDataChannel extends DisposableNativeObject {
 
 	/**
 	 * Register an observer to receive events from this RTCDataChannel. The
-	 * observer will replace the previously registered observer.
+	 * observer will replace the previously registered observer, which then
+	 * receives no more events and is released.
+	 * <p>
+	 * The registered observer stays reachable until it is replaced,
+	 * {@link #unregisterObserver() unregistered} or this channel is
+	 * {@link #dispose() disposed}. Calls that change the observer or dispose
+	 * this channel must not run concurrently with each other or with other
+	 * calls on this channel.
 	 *
 	 * @param observer The new data channel observer.
 	 */
 	public native void registerObserver(RTCDataChannelObserver observer);
 
 	/**
-	 * Unregister the last set RTCDataChannelObserver.
+	 * Unregister the last set RTCDataChannelObserver and release it. It
+	 * receives no more events once this returns. May be called from inside
+	 * one of the observer's own callbacks.
 	 */
 	public native void unregisterObserver();
 
@@ -139,6 +155,13 @@ public class RTCDataChannel extends DisposableNativeObject {
 	 */
 	public native void close();
 
+	/**
+	 * Unregisters and releases the observer, if any, and releases this
+	 * channel's native object. Call it once the channel is no longer used,
+	 * before its {@link RTCPeerConnection} is closed and its
+	 * {@link PeerConnectionFactory} disposed. May be called from inside one
+	 * of the observer's own callbacks. This object must not be used afterwards.
+	 */
 	@Override
 	public native void dispose();
 

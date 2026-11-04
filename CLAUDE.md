@@ -33,6 +33,14 @@ The M151 → M158 bump (2026-11-03) needed two binding changes and one patch ref
 
 Validated by a cold linux-x86_64 build off the M158 pin (3635 ninja steps) with all 87 tests green. `RTCDataChannelTests.binaryDirectBufferWindow` is new with this bump: before it, nothing in the suite sent through the direct-buffer path, which gateway's `DataChannelStream` uses for bulk tunnel data. It checks the position/limit window byte for byte and that the bytes are copied at send time (it fails if the native side ignores `position`).
 
+## Native object lifetimes (1.4.1)
+
+libwebrtc never owns the observers this JNI passes it, and callbacks run on libwebrtc threads that attach to the JVM once and never detach. Hence these rules (quality audit RTC-1 and BACKLOG 4.30(b) each broke one):
+- **Local references created on a libwebrtc thread must be deleted** (wrap them in `JavaLocalRef`, pass `.get()`, never `.release()` into a call): they are otherwise freed only when the thread exits. jni-voithos `GetFieldID(env, jobject, …)`, behind every `GetHandle`/`SetHandle`, now deletes its class reference.
+- **The JNI owns every observer it `new`s.** `RTCDataChannel.observerHandle` holds the data channel observer; it is freed when replaced, on `unregisterObserver()` and in `dispose()`, which unregisters first. `RTCPeerConnection.observerHandle` is freed in `close()`. (`RTCDtlsTransport.registerObserver` still leaks its observer; nothing we ship uses it.)
+- **`RTCPeerConnection.close()` releases the native peer connection.** Before 1.4.1 it never did, which kept every closed connection and its factory's `ConnectionContext` alive: about 120 KB of native memory per connect/teardown cycle in a local loop, flat afterwards. A Java compare-and-set makes `close()` run once, because `Close()` fires `onConnectionChange(CLOSED)` synchronously and a handler that closes again would release twice. A second `close()` on an application thread waits for the first (a latch); one on a libwebrtc thread returns at once, since waiting there deadlocks. Callers must not run `close()` concurrently with other calls on that connection, nor call it while holding a lock its observer callbacks take.
+- Teardown requested from inside a callback (`Thread::Current() != nullptr`: Java threads are never wrapped) goes through `RunNowOrAfterCallback` (`include/rtc/RunAfterCallback.h`) and runs after the callback returns.
+
 ## Project Structure
 
 ```

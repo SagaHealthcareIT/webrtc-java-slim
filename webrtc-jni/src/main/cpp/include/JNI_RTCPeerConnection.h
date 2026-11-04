@@ -178,11 +178,19 @@ extern "C" {
 
 	/*
 	 * Class:     dev_kastle_webrtc_RTCPeerConnection
-	 * Method:    close
+	 * Method:    closeNative
 	 * Signature: ()V
 	 */
-	JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_close
+	JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_closeNative
 	(JNIEnv *, jobject);
+
+	/*
+	 * Class:     dev_kastle_webrtc_RTCPeerConnection
+	 * Method:    isLibWebRtcThread
+	 * Signature: ()Z
+	 */
+	JNIEXPORT jboolean JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_isLibWebRtcThread
+	(JNIEnv *, jclass);
 
 #ifdef __cplusplus
 }

@@ -17,10 +17,12 @@
 package dev.kastle.webrtc;
 
 import static java.util.Objects.nonNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Convenience test class implementing the basic {@link RTCPeerConnection}
@@ -70,7 +72,8 @@ class TestPeerConnection implements PeerConnectionObserver {
 	}
 
 	void waitUntilConnected() throws InterruptedException {
-		connectedLatch.await();
+		// Fail rather than hang the build when a connection never comes up.
+		assertTrue(connectedLatch.await(10, TimeUnit.SECONDS), "peer connection should connect within 10 s");
 	}
 
 	RTCSessionDescription createOffer() throws Exception {

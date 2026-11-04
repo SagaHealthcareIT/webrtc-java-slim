@@ -25,6 +25,7 @@
 #include "api/RTCSessionDescription.h"
 #include "api/RTCStatsCollectorCallback.h"
 #include "api/WebRTCUtils.h"
+#include "rtc/RunAfterCallback.h"
 #include "JavaArray.h"
 #include "JavaEnums.h"
 #include "JavaFactories.h"
@@ -459,25 +460,49 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_restartIce
 	pc->RestartIce();
 }
 
-JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_close
+// Runs at most once per RTCPeerConnection: RTCPeerConnection.close() guards it
+// with a compare-and-set, because Close() calls the observer synchronously
+// (OnIceConnectionChange, OnConnectionChange(kClosed)) and a handler that
+// closes again must not release the connection a second time.
+JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_closeNative
 (JNIEnv * env, jobject caller)
 {
 	webrtc::PeerConnectionInterface * pc = GetHandle<webrtc::PeerConnectionInterface>(env, caller);
-	CHECK_HANDLE(pc);
+
+	if (pc == nullptr) {
+		// Never opened, or already released. No exception: this may run inside a
+		// callback, where an exception escaping to native code aborts the JVM.
+		return;
+	}
 
 	try {
+		// The handles stay set while Close() runs, so the callbacks it fires can
+		// still query this connection. Close() then clears the observer, so no
+		// callback reaches it afterwards.
 		pc->Close();
 
+		auto observer = GetHandle<webrtc::PeerConnectionObserver>(env, caller, "observerHandle");
+		SetHandle<std::nullptr_t>(env, caller, "observerHandle", nullptr);
 		SetHandle<std::nullptr_t>(env, caller, nullptr);
 
-		auto observer = GetHandle<webrtc::PeerConnectionObserver>(env, caller, "observerHandle");
-
-		if (observer) {
-		    SetHandle<std::nullptr_t>(env, caller, "observerHandle", nullptr);
+		// Drop the reference this Java object has held since createPeerConnection.
+		// Before 1.4.1 nothing released it, so every closed peer connection stayed
+		// allocated, keeping its PeerConnectionFactory's ConnectionContext (network
+		// manager, socket factory) alive after the factory was disposed. Called
+		// from inside one of this connection's callbacks, both wait until it returns.
+		jni::RunNowOrAfterCallback([pc, observer] {
+			pc->Release();
 			delete observer;
-		}
+		});
 	}
 	catch (...) {
 		ThrowCxxJavaException(env);
 	}
+}
+
+JNIEXPORT jboolean JNICALL Java_dev_kastle_webrtc_RTCPeerConnection_isLibWebRtcThread
+(JNIEnv * env, jclass caller)
+{
+	// Java threads are never wrapped as webrtc::Thread (see RunAfterCallback.h).
+	return static_cast<jboolean>(webrtc::Thread::Current() != nullptr);
 }

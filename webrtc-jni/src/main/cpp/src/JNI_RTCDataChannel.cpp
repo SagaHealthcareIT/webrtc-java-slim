@@ -21,18 +21,51 @@
 #include "JavaRef.h"
 #include "JavaString.h"
 #include "JavaUtils.h"
+#include "JavaNullPointerException.h"
+#include "rtc/RunAfterCallback.h"
 
 #include "api/data_channel_interface.h"
 
 #include <span>
 
+// libwebrtc never owns a DataChannelObserver, so this JNI does: the observer
+// lives in RTCDataChannel.observerHandle until it is replaced, unregistered or
+// the channel is disposed. Before 1.4.1 it was never freed, and with it the
+// global reference to the Java observer and everything that observer reaches.
+
+static void DeleteObserver(jni::RTCDataChannelObserver * observer)
+{
+	if (observer != nullptr) {
+		// After RegisterObserver or UnregisterObserver returns, libwebrtc
+		// delivers nothing more to this observer, but its callback may be on
+		// the stack right now (the caller is inside it).
+		jni::RunNowOrAfterCallback([observer] { delete observer; });
+	}
+}
+
 JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_registerObserver
 (JNIEnv * env, jobject caller, jobject jObserver)
 {
+	if (jObserver == nullptr) {
+		env->Throw(jni::JavaNullPointerException(env, "RTCDataChannelObserver must not be null"));
+		return;
+	}
+
 	webrtc::DataChannelInterface * channel = GetHandle<webrtc::DataChannelInterface>(env, caller);
 	CHECK_HANDLE(channel);
 
-	channel->RegisterObserver(new jni::RTCDataChannelObserver(env, jni::JavaGlobalRef<jobject>(env, jObserver)));
+	auto * previous = GetHandle<jni::RTCDataChannelObserver>(env, caller, "observerHandle");
+	auto * observer = new jni::RTCDataChannelObserver(env, jni::JavaGlobalRef<jobject>(env, jObserver));
+
+	// Record the new observer first: its first callback can run before
+	// RegisterObserver returns, and if that callback unregisters or disposes,
+	// it must free the new observer, not the previous one.
+	SetHandle(env, caller, "observerHandle", observer);
+
+	// Replaces the previous observer. Callbacks still queued for it are dropped.
+	channel->RegisterObserver(observer);
+
+	DeleteObserver(previous);
 }
 
 JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_unregisterObserver
@@ -42,6 +75,10 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_unregisterObserver
 	CHECK_HANDLE(channel);
 
 	channel->UnregisterObserver();
+
+	auto * observer = GetHandle<jni::RTCDataChannelObserver>(env, caller, "observerHandle");
+	SetHandle<std::nullptr_t>(env, caller, "observerHandle", nullptr);
+	DeleteObserver(observer);
 }
 
 JNIEXPORT jstring JNICALL Java_dev_kastle_webrtc_RTCDataChannel_getLabel
@@ -149,15 +186,30 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_dispose
 	webrtc::DataChannelInterface * channel = GetHandle<webrtc::DataChannelInterface>(env, caller);
 	CHECK_HANDLE(channel);
 
+	// Unregister first: the channel itself can outlive this handle (the peer
+	// connection holds its own reference), and it must not keep calling an
+	// observer that is about to be deleted.
+	auto * observer = GetHandle<jni::RTCDataChannelObserver>(env, caller, "observerHandle");
+
+	if (observer != nullptr) {
+		channel->UnregisterObserver();
+		SetHandle<std::nullptr_t>(env, caller, "observerHandle", nullptr);
+		DeleteObserver(observer);
+	}
+
+	SetHandle<std::nullptr_t>(env, caller, nullptr);
+
+	if (webrtc::Thread::Current() != nullptr) {
+		// Inside a callback: release once it returns (see RunNowOrAfterCallback).
+		jni::RunNowOrAfterCallback([channel] { channel->Release(); });
+		return;
+	}
+
 	webrtc::RefCountReleaseStatus status = channel->Release();
 
 	if (status != webrtc::RefCountReleaseStatus::kDroppedLastRef) {
 		env->Throw(jni::JavaError(env, "Native object was not deleted. A reference is still around somewhere."));
 	}
-
-	SetHandle<std::nullptr_t>(env, caller, nullptr);
-
-	channel = nullptr;
 }
 
 JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendDirectBuffer
