@@ -21,6 +21,8 @@
 #include "JNI_WebRTC.h"
 #include "rtc/CallbackGuard.h"
 
+#include <memory>
+
 namespace jni
 {
 	CreateSessionDescriptionObserver::CreateSessionDescriptionObserver(JNIEnv * env, const JavaGlobalRef<jobject> & observer) :
@@ -34,8 +36,12 @@ namespace jni
 
 	void CreateSessionDescriptionObserver::OnSuccess(webrtc::SessionDescriptionInterface * desc)
 	{
+		// libwebrtc hands over ownership of desc (api/jsep.h). The Java side gets
+		// a copy of its type and SDP text, so free it when this returns.
+		std::unique_ptr<webrtc::SessionDescriptionInterface> owned(desc);
+
 		CallJava("CreateSessionDescriptionObserver.onSuccess", [&](JNIEnv * env) {
-			JavaLocalRef<jobject> javaDesc = jni::RTCSessionDescription::toJava(env, desc);
+			JavaLocalRef<jobject> javaDesc = jni::RTCSessionDescription::toJava(env, owned.get());
 
 			CallVoidJava(env, observer, javaClass->onSuccess, javaDesc.get());
 		});
