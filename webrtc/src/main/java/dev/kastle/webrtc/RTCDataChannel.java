@@ -197,4 +197,14 @@ public class RTCDataChannel extends DisposableNativeObject {
 
 	private native void sendByteArrayBuffer(byte[] buffer, boolean binary);
 
+	/**
+	 * Test hook, not API: the native copy of the next {@code count} received
+	 * messages, on any channel, fails the way an exhausted Java heap makes it
+	 * fail (no buffer, an {@link OutOfMemoryError} pending). The channel that
+	 * received such a message is closed. Zero disarms it.
+	 *
+	 * @param count The number of message copies to fail.
+	 */
+	static native void injectMessageCopyFailures(int count);
+
 }

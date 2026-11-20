@@ -18,6 +18,7 @@
 #include "JavaEnums.h"
 #include "JavaString.h"
 #include "JNI_WebRTC.h"
+#include "rtc/CallbackGuard.h"
 
 namespace jni
 {
@@ -31,16 +32,17 @@ namespace jni
 	{
 	}
 
+	// libwebrtc logs from any thread: its own, and Java threads inside a JNI
+	// call. The body runs in CallJava, which contains any failure there (see
+	// CallbackGuard.h) and reports it to stderr, never back through RTC_LOG.
 	void LogSink::OnLogMessage(const std::string & message, webrtc::LoggingSeverity severity)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("LogSink.onLogMessage", [&](JNIEnv * env) {
+			JavaLocalRef<jobject> jSeverity = JavaEnums::toJava(env, severity);
+			JavaLocalRef<jstring> jMessage = JavaString::toJava(env, message);
 
-		JavaLocalRef<jobject> jSeverity = JavaEnums::toJava(env, severity);
-		JavaLocalRef<jstring> jMessage = JavaString::toJava(env, message);
-
-		env->CallVoidMethod(javaSink, javaClass->onLogMessage, jSeverity.get(), jMessage.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, javaSink, javaClass->onLogMessage, jSeverity.get(), jMessage.get());
+		});
 	}
 
 	LogSink::JavaLogSinkClass::JavaLogSinkClass(JNIEnv * env)

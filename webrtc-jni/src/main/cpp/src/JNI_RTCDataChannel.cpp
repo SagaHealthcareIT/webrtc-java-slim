@@ -15,6 +15,7 @@
  */
 
 #include "JNI_RTCDataChannel.h"
+#include "api/DataBufferFactory.h"
 #include "api/RTCDataChannelObserver.h"
 #include "JavaEnums.h"
 #include "JavaError.h"
@@ -54,18 +55,26 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_registerObserver
 	webrtc::DataChannelInterface * channel = GetHandle<webrtc::DataChannelInterface>(env, caller);
 	CHECK_HANDLE(channel);
 
-	auto * previous = GetHandle<jni::RTCDataChannelObserver>(env, caller, "observerHandle");
-	auto * observer = new jni::RTCDataChannelObserver(env, jni::JavaGlobalRef<jobject>(env, jObserver));
+	// Often called inside PeerConnectionObserver.onDataChannel, i.e. on a
+	// libwebrtc thread: a C++ exception leaving this function would abort the
+	// JVM, so it is handed to the Java caller instead.
+	try {
+		auto * previous = GetHandle<jni::RTCDataChannelObserver>(env, caller, "observerHandle");
+		auto * observer = new jni::RTCDataChannelObserver(env, jni::JavaGlobalRef<jobject>(env, jObserver), channel);
 
-	// Record the new observer first: its first callback can run before
-	// RegisterObserver returns, and if that callback unregisters or disposes,
-	// it must free the new observer, not the previous one.
-	SetHandle(env, caller, "observerHandle", observer);
+		// Record the new observer first: its first callback can run before
+		// RegisterObserver returns, and if that callback unregisters or disposes,
+		// it must free the new observer, not the previous one.
+		SetHandle(env, caller, "observerHandle", observer);
 
-	// Replaces the previous observer. Callbacks still queued for it are dropped.
-	channel->RegisterObserver(observer);
+		// Replaces the previous observer. Callbacks still queued for it are dropped.
+		channel->RegisterObserver(observer);
 
-	DeleteObserver(previous);
+		DeleteObserver(previous);
+	}
+	catch (...) {
+		ThrowCxxJavaException(env);
+	}
 }
 
 JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_unregisterObserver
@@ -276,4 +285,10 @@ JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendByteArrayBuffer
 	catch (...) {
 		ThrowCxxJavaException(env);
 	}
+}
+
+JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_injectMessageCopyFailures
+(JNIEnv * env, jclass caller, jint count)
+{
+	jni::DataBufferFactory::injectCopyFailures(count);
 }

@@ -21,6 +21,7 @@
 #include "JavaString.h"
 #include "JavaUtils.h"
 #include "JNI_WebRTC.h"
+#include "rtc/CallbackGuard.h"
 
 namespace jni
 {
@@ -30,26 +31,25 @@ namespace jni
 	{
 	}
 
+	// libwebrtc calls both on its network thread. Each body runs in CallJava,
+	// which contains any failure there (see CallbackGuard.h).
+
 	void RTCDtlsTransportObserver::OnStateChange(webrtc::DtlsTransportInformation info)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("RTCDtlsTransportObserver.onStateChange", [&](JNIEnv * env) {
+			auto state = JavaEnums::toJava(env, info.state());
 
-		auto state = JavaEnums::toJava(env, info.state());
-
-		env->CallVoidMethod(observer, javaClass->onStateChange, state.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onStateChange, state.get());
+		});
 	}
 
 	void RTCDtlsTransportObserver::OnError(webrtc::RTCError error)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("RTCDtlsTransportObserver.onError", [&](JNIEnv * env) {
+			JavaLocalRef<jstring> errorMessage = JavaString::toJava(env, RTCErrorToString(error));
 
-		JavaLocalRef<jstring> errorMessage = JavaString::toJava(env, RTCErrorToString(error));
-
-		env->CallVoidMethod(observer, javaClass->onError, errorMessage.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onError, errorMessage.get());
+		});
 	}
 
 	RTCDtlsTransportObserver::JavaRTCDtlsTransportObserverClass::JavaRTCDtlsTransportObserverClass(JNIEnv * env)

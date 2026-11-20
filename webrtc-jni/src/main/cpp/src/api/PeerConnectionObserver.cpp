@@ -25,6 +25,7 @@
 #include "JavaRuntimeException.h"
 #include "JavaUtils.h"
 #include "JNI_WebRTC.h"
+#include "rtc/CallbackGuard.h"
 
 namespace jni
 {
@@ -34,110 +35,105 @@ namespace jni
 	{
 	}
 
+	// libwebrtc calls every method below on its signaling thread. Each body runs
+	// in CallJava, which contains any failure there (see CallbackGuard.h).
+
 	void PeerConnectionObserver::OnConnectionChange(webrtc::PeerConnectionInterface::PeerConnectionState state)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onConnectionChange", [&](JNIEnv * env) {
+			auto jState = JavaEnums::toJava(env, state);
 
-		auto jState = JavaEnums::toJava(env, state);
-
-		env->CallVoidMethod(observer, javaClass->onConnectionChange, jState.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onConnectionChange, jState.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState state)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onSignalingChange", [&](JNIEnv * env) {
+			auto jState = JavaEnums::toJava(env, state);
 
-		auto jState = JavaEnums::toJava(env, state);
-
-		env->CallVoidMethod(observer, javaClass->onSignalingChange, jState.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onSignalingChange, jState.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnDataChannel(webrtc::scoped_refptr<webrtc::DataChannelInterface> channel)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onDataChannel", [&](JNIEnv * env) {
+			auto jDataChannel = JavaFactories::create(env, channel.get());
 
-		auto jDataChannel = JavaFactories::create(env, channel.release());
+			// The Java RTCDataChannel holds this reference from here on and
+			// releases it in dispose(). Until it exists, `channel` keeps it.
+			channel.release();
 
-		env->CallVoidMethod(observer, javaClass->onDataChannel, jDataChannel.get());
+			CallVoidJava(env, observer, javaClass->onDataChannel, jDataChannel.get());
+		});
 
-		ExceptionCheck(env);
+		if (channel.get() != nullptr) {
+			// No Java object was created for the channel, so nothing will ever
+			// read it or close it. Close it now, so the remote sees it closed and
+			// does not send into a channel nobody reads. `channel` drops this
+			// callback's reference when this returns.
+			channel->Close();
+		}
 	}
 
 	void PeerConnectionObserver::OnRenegotiationNeeded()
 	{
-		JNIEnv * env = AttachCurrentThread();
-
-		env->CallVoidMethod(observer, javaClass->onRenegotiationNeeded);
-
-		ExceptionCheck(env);
+		CallJava("PeerConnectionObserver.onRenegotiationNeeded", [&](JNIEnv * env) {
+			CallVoidJava(env, observer, javaClass->onRenegotiationNeeded);
+		});
 	}
 
 	void PeerConnectionObserver::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState state)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onIceConnectionChange", [&](JNIEnv * env) {
+			auto jState = JavaEnums::toJava(env, state);
 
-		auto jState = JavaEnums::toJava(env, state);
-
-		env->CallVoidMethod(observer, javaClass->onIceConnectionChange, jState.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onIceConnectionChange, jState.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnIceGatheringChange(webrtc::PeerConnectionInterface::IceGatheringState state)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onIceGatheringChange", [&](JNIEnv * env) {
+			auto jState = JavaEnums::toJava(env, state);
 
-		auto jState = JavaEnums::toJava(env, state);
-
-		env->CallVoidMethod(observer, javaClass->onIceGatheringChange, jState.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onIceGatheringChange, jState.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnIceCandidate(const webrtc::IceCandidateInterface * candidate)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onIceCandidate", [&](JNIEnv * env) {
+			JavaLocalRef<jobject> jCandidate = RTCIceCandidate::toJava(env, candidate);
 
-		JavaLocalRef<jobject> jCandidate = RTCIceCandidate::toJava(env, candidate);
-
-		env->CallVoidMethod(observer, javaClass->onIceCandidate, jCandidate.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onIceCandidate, jCandidate.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnIceCandidateError(const std::string & address, int port, const std::string & url, int error_code, const std::string & error_text)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onIceCandidateError", [&](JNIEnv * env) {
+			JavaLocalRef<jobject> event = RTCPeerConnectionIceErrorEvent::toJava(env, address, port, url, error_code, error_text);
 
-		JavaLocalRef<jobject> event = RTCPeerConnectionIceErrorEvent::toJava(env, address, port, url, error_code, error_text);
-
-		env->CallVoidMethod(observer, javaClass->onIceCandidateError, event.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onIceCandidateError, event.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnIceCandidateRemoved(const webrtc::IceCandidate * candidate)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("PeerConnectionObserver.onIceCandidateRemoved", [&](JNIEnv * env) {
+			JavaLocalRef<jobject> jCandidate = RTCIceCandidate::toJava(env, candidate);
 
-		JavaLocalRef<jobject> jCandidate = RTCIceCandidate::toJava(env, candidate);
-
-		env->CallVoidMethod(observer, javaClass->onIceCandidateRemoved, jCandidate.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onIceCandidateRemoved, jCandidate.get());
+		});
 	}
 
 	void PeerConnectionObserver::OnIceConnectionReceivingChange(bool receiving)
 	{
-		JNIEnv * env = AttachCurrentThread();
-
-		env->CallVoidMethod(observer, javaClass->onIceConnectionReceivingChange, receiving);
-
-		ExceptionCheck(env);
+		CallJava("PeerConnectionObserver.onIceConnectionReceivingChange", [&](JNIEnv * env) {
+			CallVoidJava(env, observer, javaClass->onIceConnectionReceivingChange, receiving);
+		});
 	}
 
 	PeerConnectionObserver::JavaPeerConnectionObserverClass::JavaPeerConnectionObserverClass(JNIEnv * env)
