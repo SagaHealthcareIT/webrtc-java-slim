@@ -24,6 +24,7 @@
 #include <api/DataBufferFactory.h>
 
 #include <jni.h>
+#include <atomic>
 #include <memory>
 
 namespace jni
@@ -31,7 +32,12 @@ namespace jni
 	class RTCDataChannelObserver : public webrtc::DataChannelObserver
 	{
 		public:
-			explicit RTCDataChannelObserver(JNIEnv * env, const JavaGlobalRef<jobject> & observer);
+			/**
+			 * The channel is not owned. It outlives every callback to this
+			 * observer: RTCDataChannel.dispose() unregisters the observer, which
+			 * waits for a running callback, before it releases the channel.
+			 */
+			RTCDataChannelObserver(JNIEnv * env, const JavaGlobalRef<jobject> & observer, webrtc::DataChannelInterface * channel);
 			~RTCDataChannelObserver() = default;
 
 			// DataChannelObserver implementation.
@@ -51,9 +57,20 @@ namespace jni
 			};
 
 		private:
+			void closeAfterFailedDelivery(size_t size);
+
 			JavaGlobalRef<jobject> observer;
 
-			std::unique_ptr<DataBufferFactory> bufferFactory;
+			webrtc::DataChannelInterface * const channel;
+
+			/**
+			 * Set once a message could not be handed to Java. Every later message
+			 * is dropped: the stream above must not see a gap, and the channel is
+			 * already closing.
+			 */
+			std::atomic<bool> deliveryFailed { false };
+
+			const DataBufferFactory & bufferFactory;
 
 			const std::shared_ptr<JavaRTCDataChannelObserverClass> javaClass;
 	};

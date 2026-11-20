@@ -19,6 +19,7 @@
 #include "api/WebRTCUtils.h"
 #include "JavaString.h"
 #include "JNI_WebRTC.h"
+#include "rtc/CallbackGuard.h"
 
 namespace jni
 {
@@ -28,26 +29,25 @@ namespace jni
 	{
 	}
 
+	// libwebrtc calls both on its signaling thread. Each body runs in CallJava,
+	// which contains any failure there (see CallbackGuard.h).
+
 	void CreateSessionDescriptionObserver::OnSuccess(webrtc::SessionDescriptionInterface * desc)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("CreateSessionDescriptionObserver.onSuccess", [&](JNIEnv * env) {
+			JavaLocalRef<jobject> javaDesc = jni::RTCSessionDescription::toJava(env, desc);
 
-		JavaLocalRef<jobject> javaDesc = jni::RTCSessionDescription::toJava(env, desc);
-
-		env->CallVoidMethod(observer, javaClass->onSuccess, javaDesc.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onSuccess, javaDesc.get());
+		});
 	}
 
 	void CreateSessionDescriptionObserver::OnFailure(webrtc::RTCError error)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("CreateSessionDescriptionObserver.onFailure", [&](JNIEnv * env) {
+			JavaLocalRef<jstring> errorMessage = JavaString::toJava(env, RTCErrorToString(error));
 
-		JavaLocalRef<jstring> errorMessage = JavaString::toJava(env, RTCErrorToString(error));
-
-		env->CallVoidMethod(observer, javaClass->onFailure, errorMessage.get());
-
- 		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onFailure, errorMessage.get());
+		});
 	}
 
 	CreateSessionDescriptionObserver::JavaCreateSessionDescObserverClass::JavaCreateSessionDescObserverClass(JNIEnv * env)

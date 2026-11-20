@@ -19,6 +19,7 @@
 #include "JavaString.h"
 #include "JNI_WebRTC.h"
 #include "JavaUtils.h"
+#include "rtc/CallbackGuard.h"
 
 namespace jni
 {
@@ -28,24 +29,23 @@ namespace jni
 	{
 	}
 
+	// libwebrtc calls both on its signaling thread. Each body runs in CallJava,
+	// which contains any failure there (see CallbackGuard.h).
+
 	void SetSessionDescriptionObserver::OnSuccess()
 	{
-		JNIEnv * env = AttachCurrentThread();
-
-		env->CallVoidMethod(observer, javaClass->onSuccess);
-
-		ExceptionCheck(env);
+		CallJava("SetSessionDescriptionObserver.onSuccess", [&](JNIEnv * env) {
+			CallVoidJava(env, observer, javaClass->onSuccess);
+		});
 	}
 
 	void SetSessionDescriptionObserver::OnFailure(webrtc::RTCError error)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("SetSessionDescriptionObserver.onFailure", [&](JNIEnv * env) {
+			JavaLocalRef<jstring> errorMessage = JavaString::toJava(env, RTCErrorToString(error));
 
-		JavaLocalRef<jstring> errorMessage = JavaString::toJava(env, RTCErrorToString(error));
-
-		env->CallVoidMethod(observer, javaClass->onFailure, errorMessage.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, observer, javaClass->onFailure, errorMessage.get());
+		});
 	}
 
 	SetSessionDescriptionObserver::JavaSetSessionDescObserverClass::JavaSetSessionDescObserverClass(JNIEnv * env)

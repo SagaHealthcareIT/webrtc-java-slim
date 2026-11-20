@@ -17,6 +17,7 @@
 #include "api/RTCStatsCollectorCallback.h"
 #include "api/RTCStatsReport.h"
 #include "JNI_WebRTC.h"
+#include "rtc/CallbackGuard.h"
 
 namespace jni
 {
@@ -26,15 +27,15 @@ namespace jni
 	{
 	}
 
+	// libwebrtc calls this on its signaling thread. The body runs in CallJava,
+	// which contains any failure there (see CallbackGuard.h).
 	void RTCStatsCollectorCallback::OnStatsDelivered(const webrtc::scoped_refptr<const webrtc::RTCStatsReport> & report)
 	{
-		JNIEnv * env = AttachCurrentThread();
+		CallJava("RTCStatsCollectorCallback.onStatsDelivered", [&](JNIEnv * env) {
+			JavaLocalRef<jobject> javaReport = jni::RTCStatsReport::toJava(env, report);
 
-		JavaLocalRef<jobject> javaReport = jni::RTCStatsReport::toJava(env, report);
-
-		env->CallVoidMethod(callback, javaClass->onStatsDelivered, javaReport.get());
-
-		ExceptionCheck(env);
+			CallVoidJava(env, callback, javaClass->onStatsDelivered, javaReport.get());
+		});
 	}
 
 	RTCStatsCollectorCallback::JavaRTCStatsCollectorCallbackClass::JavaRTCStatsCollectorCallbackClass(JNIEnv * env)

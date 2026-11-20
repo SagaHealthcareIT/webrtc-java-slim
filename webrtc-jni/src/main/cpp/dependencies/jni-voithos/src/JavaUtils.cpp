@@ -136,7 +136,15 @@ jfieldID GetFieldID(JNIEnv * env, jclass cls, const std::string & fieldName, con
 
 JNIEnv * AttachCurrentThread()
 {
-	thread_local std::unique_ptr<jni::JavaThreadEnv> threadEnv(new jni::JavaThreadEnv(javaContext->getVM()));
+	thread_local std::unique_ptr<jni::JavaThreadEnv> threadEnv;
+
+	// Attach again after a failed attach (e.g. no heap left for the thread's
+	// java.lang.Thread object). Caching the failure would leave this thread,
+	// typically a libwebrtc thread that runs every callback of its factory,
+	// unable to reach Java for the rest of its life.
+	if (threadEnv == nullptr || threadEnv->getEnv() == nullptr) {
+		threadEnv.reset(new jni::JavaThreadEnv(javaContext->getVM()));
+	}
 
 	return threadEnv->getEnv();
 }

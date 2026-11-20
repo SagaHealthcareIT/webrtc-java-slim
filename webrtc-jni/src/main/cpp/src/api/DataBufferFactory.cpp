@@ -18,8 +18,41 @@
 #include "JavaUtils.h"
 #include "JNI_WebRTC.h"
 
+#include <atomic>
+
+namespace
+{
+	std::atomic<int> injectedCopyFailures { 0 };
+
+	bool takeInjectedCopyFailure()
+	{
+		int remaining = injectedCopyFailures.load(std::memory_order_relaxed);
+
+		while (remaining > 0) {
+			if (injectedCopyFailures.compare_exchange_weak(remaining, remaining - 1)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
 namespace jni
 {
+	const DataBufferFactory & DataBufferFactory::shared(JNIEnv * env)
+	{
+		// A constructor that throws leaves this unset; the next call retries.
+		static const DataBufferFactory * const factory = new DataBufferFactory(env, PKG"RTCDataChannelBuffer");
+
+		return *factory;
+	}
+
+	void DataBufferFactory::injectCopyFailures(int count)
+	{
+		injectedCopyFailures.store(count > 0 ? count : 0);
+	}
+
 	DataBufferFactory::DataBufferFactory(JNIEnv * env, const char * className) :
 		JavaFactory(env, className, "(" BYTE_BUFFER_SIG "Z)V"),
 		byteBufferClass(env, FindClass(env, "java/nio/ByteBuffer")),
@@ -34,6 +67,17 @@ namespace jni
 		// NewDirectByteBuffer aliased that memory, so any Java consumer that
 		// retained the buffer past the callback read freed/reused memory.
 		const jsize size = static_cast<jsize>(dataBuffer->data.size());
+
+		if (takeInjectedCopyFailure()) {
+			jclass error = env->FindClass("java/lang/OutOfMemoryError");
+
+			if (error != nullptr) {
+				env->ThrowNew(error, "injected message copy failure (test hook)");
+				env->DeleteLocalRef(error);
+			}
+			// Either way an exception is pending, as after a failed NewByteArray.
+			return JavaLocalRef<jobject>(env, nullptr);
+		}
 
 		jbyteArray array = env->NewByteArray(size);
 		if (array == nullptr) {

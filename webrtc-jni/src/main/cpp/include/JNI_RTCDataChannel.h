@@ -135,6 +135,14 @@ extern "C" {
 	JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_sendByteArrayBuffer
 	(JNIEnv *, jobject, jbyteArray, jboolean);
 
+	/*
+	 * Class:     dev_kastle_webrtc_RTCDataChannel
+	 * Method:    injectMessageCopyFailures
+	 * Signature: (I)V
+	 */
+	JNIEXPORT void JNICALL Java_dev_kastle_webrtc_RTCDataChannel_injectMessageCopyFailures
+	(JNIEnv *, jclass, jint);
+
 #ifdef __cplusplus
 }
 #endif

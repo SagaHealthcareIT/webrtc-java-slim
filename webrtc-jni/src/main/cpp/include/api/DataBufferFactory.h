@@ -28,7 +28,24 @@ namespace jni
 		public:
 			DataBufferFactory(JNIEnv * env, const char * className);
 
+			/**
+			 * The one factory for RTCDataChannelBuffer, created on first use and
+			 * never freed. One per observer cost two class lookups through the
+			 * Java class loader on every registerObserver call, which can fail
+			 * when the heap is exhausted, and leaked two global references.
+			 * Never freed, so no JNI call runs from a static destructor at exit.
+			 */
+			static const DataBufferFactory & shared(JNIEnv * env);
+
 			JavaLocalRef<jobject> create(JNIEnv * env, const webrtc::DataBuffer * dataBuffer) const override;
+
+			/**
+			 * Test hook (RTCDataChannel.injectMessageCopyFailures): the next
+			 * {@code count} calls to create(), on any channel, fail the way an
+			 * exhausted Java heap makes them fail: null, with an
+			 * OutOfMemoryError pending. Zero or less disarms it.
+			 */
+			static void injectCopyFailures(int count);
 
 		private:
 			JavaGlobalRef<jclass> byteBufferClass;
